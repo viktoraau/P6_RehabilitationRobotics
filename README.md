@@ -1,4 +1,4 @@
-# P6_RehabilitationRobotics
+# P6_Rehabilitation_Robotics
 
 This is a P6 exam bachelors project for 6 semester of robotteknologi (Robotics) at Aalborg University.
 
