@@ -1,0 +1,5 @@
+string joint_name
+uint16 bandwidth_hz
+---
+bool success
+string message

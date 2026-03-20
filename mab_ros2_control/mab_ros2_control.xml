@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<library path="mab_system_hardware">
+  <class
+    name="mab_ros2_control/MABSystemHardware"
+    type="mab_ros2_control::MABSystemHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control system interface for MAB Robotics MD actuators and PDS power stage hardware.
+    </description>
+  </class>
+</library>

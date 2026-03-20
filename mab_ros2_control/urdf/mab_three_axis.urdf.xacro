@@ -1,0 +1,495 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mab_three_axis_rehab_robot">
+  <xacro:arg name="bus" default="USB"/>
+  <xacro:arg name="data_rate" default="8M"/>
+  <xacro:arg name="use_pds" default="true"/>
+  <xacro:arg name="use_regular_can_frames" default="true"/>
+  <xacro:arg name="pds_id" default="100"/>
+  <xacro:arg name="power_stage_socket" default="2"/>
+  <xacro:arg name="md_id_1" default="37"/>
+  <xacro:arg name="md_id_2" default="939"/>
+  <xacro:arg name="md_id_3" default="941"/>
+  <xacro:arg name="telemetry_divider" default="50"/>
+  <xacro:arg name="auto_enable_power_stage" default="true"/>
+  <xacro:arg name="disable_power_stage_on_deactivate" default="false"/>
+  <xacro:arg name="zero_on_activate" default="false"/>
+  <xacro:arg name="allow_no_connected_drives" default="true"/>
+  <xacro:arg name="save_md_configuration_to_flash" default="false"/>
+  <xacro:arg name="hold_position_on_activate_ms" default="3000"/>
+  <xacro:arg name="maintenance_reload_enabled" default="true"/>
+  <xacro:arg name="maintenance_restore_controller" default="previous"/>
+  <xacro:arg name="maintenance_service_timeout_ms" default="3000"/>
+
+  <!-- Joint-specific motor mapping -->
+  <xacro:arg name="motor_name_1" default="MA-p-45-36_KV80"/>
+  <xacro:arg name="motor_name_2" default="MA-p-40_10_K170"/>
+  <xacro:arg name="motor_name_3" default="MA-p-40_10_K170"/>
+  <!-- Drive register shows motorGearRatio=1.0; these URDF values model the external joint reduction. -->
+  <xacro:arg name="gear_ratio_1" default="0.02631578947368421"/>
+  <xacro:arg name="gear_ratio_2" default="0.1"/>
+  <xacro:arg name="gear_ratio_3" default="0.1"/>
+
+  <!-- Motor and controller values downloaded from MD0037. -->
+  <xacro:arg name="motor_pole_pairs_1" default="14"/>
+  <xacro:arg name="motor_kv_1" default="80"/>
+  <xacro:arg name="motor_torque_constant_1" default="0.11"/>
+  <xacro:arg name="motor_max_current_1" default="15.0"/>
+  <xacro:arg name="motor_torque_bandwidth_hz_1" default="1000.0"/>
+  <xacro:arg name="motor_shutdown_temp_1" default="80.0"/>
+  <xacro:arg name="motor_friction_1" default="0.0"/>
+  <xacro:arg name="motor_stiction_1" default="0.0"/>
+  <xacro:arg name="motor_calibration_mode_1" default="0"/>
+  <xacro:arg name="limit_max_torque_1" default="40.0"/>
+  <xacro:arg name="limit_max_velocity_1" default="20.0"/>
+  <xacro:arg name="limit_position_min_1" default="-6.283"/>
+  <xacro:arg name="limit_position_max_1" default="6.283"/>
+  <xacro:arg name="limit_max_acceleration_1" default="60.0"/>
+  <xacro:arg name="limit_max_deceleration_1" default="60.0"/>
+  <xacro:arg name="profile_velocity_1" default="12.0"/>
+  <xacro:arg name="profile_acceleration_1" default="30.0"/>
+  <xacro:arg name="profile_deceleration_1" default="30.0"/>
+  <xacro:arg name="profile_quick_stop_deceleration_1" default="50.0"/>
+  <xacro:arg name="output_encoder_1" default="0"/>
+  <xacro:arg name="output_encoder_default_baud_1" default="0"/>
+  <xacro:arg name="output_encoder_mode_1" default="0"/>
+  <xacro:arg name="output_encoder_calibration_mode_1" default="0"/>
+  <xacro:arg name="position_pid_kp_1" default="10.5"/>
+  <xacro:arg name="position_pid_ki_1" default="1.5"/>
+  <xacro:arg name="position_pid_kd_1" default="0.0"/>
+  <xacro:arg name="position_pid_windup_1" default="1.0"/>
+  <xacro:arg name="velocity_pid_kp_1" default="0.1"/>
+  <xacro:arg name="velocity_pid_ki_1" default="0.0005"/>
+  <xacro:arg name="velocity_pid_kd_1" default="0.0"/>
+  <xacro:arg name="velocity_pid_windup_1" default="0.25"/>
+  <xacro:arg name="impedance_kp_1" default="0.75"/>
+  <xacro:arg name="impedance_kd_1" default="0.02"/>
+  <xacro:arg name="user_gpio_configuration_1" default="0"/>
+  <xacro:arg name="reverse_direction_1" default="0"/>
+  <xacro:arg name="shunt_resistance_1" default="0.004"/>
+
+  <!-- Motor and controller values downloaded from MD0939/MD0941. -->
+  <xacro:arg name="motor_pole_pairs_2" default="14"/>
+  <xacro:arg name="motor_kv_2" default="170"/>
+  <xacro:arg name="motor_torque_constant_2" default="0.056"/>
+  <xacro:arg name="motor_max_current_2" default="15.0"/>
+  <xacro:arg name="motor_torque_bandwidth_hz_2" default="1000.0"/>
+  <xacro:arg name="motor_shutdown_temp_2" default="80.0"/>
+  <xacro:arg name="motor_friction_2" default="0.0"/>
+  <xacro:arg name="motor_stiction_2" default="0.0"/>
+  <xacro:arg name="motor_calibration_mode_2" default="0"/>
+  <xacro:arg name="limit_max_torque_2" default="40.0"/>
+  <xacro:arg name="limit_max_velocity_2" default="20.0"/>
+  <xacro:arg name="limit_position_min_2" default="-6.283"/>
+  <xacro:arg name="limit_position_max_2" default="6.283"/>
+  <xacro:arg name="limit_max_acceleration_2" default="60.0"/>
+  <xacro:arg name="limit_max_deceleration_2" default="60.0"/>
+  <xacro:arg name="profile_velocity_2" default="12.0"/>
+  <xacro:arg name="profile_acceleration_2" default="30.0"/>
+  <xacro:arg name="profile_deceleration_2" default="30.0"/>
+  <xacro:arg name="profile_quick_stop_deceleration_2" default="50.0"/>
+  <xacro:arg name="output_encoder_2" default="0"/>
+  <xacro:arg name="output_encoder_default_baud_2" default="0"/>
+  <xacro:arg name="output_encoder_mode_2" default="0"/>
+  <xacro:arg name="output_encoder_calibration_mode_2" default="0"/>
+  <xacro:arg name="position_pid_kp_2" default="3.5"/>
+  <xacro:arg name="position_pid_ki_2" default="0.5"/>
+  <xacro:arg name="position_pid_kd_2" default="0.0"/>
+  <xacro:arg name="position_pid_windup_2" default="1.0"/>
+  <xacro:arg name="velocity_pid_kp_2" default="0.6"/>
+  <xacro:arg name="velocity_pid_ki_2" default="0.0005"/>
+  <xacro:arg name="velocity_pid_kd_2" default="0.0"/>
+  <xacro:arg name="velocity_pid_windup_2" default="0.25"/>
+  <xacro:arg name="impedance_kp_2" default="1.75"/>
+  <xacro:arg name="impedance_kd_2" default="0.02"/>
+  <xacro:arg name="user_gpio_configuration_2" default="0"/>
+  <xacro:arg name="reverse_direction_2" default="0"/>
+  <xacro:arg name="shunt_resistance_2" default="0.004"/>
+
+  <xacro:arg name="motor_pole_pairs_3" default="14"/>
+  <xacro:arg name="motor_kv_3" default="170"/>
+  <xacro:arg name="motor_torque_constant_3" default="0.056"/>
+  <xacro:arg name="motor_max_current_3" default="15.0"/>
+  <xacro:arg name="motor_torque_bandwidth_hz_3" default="1000.0"/>
+  <xacro:arg name="motor_shutdown_temp_3" default="80.0"/>
+  <xacro:arg name="motor_friction_3" default="0.0"/>
+  <xacro:arg name="motor_stiction_3" default="0.0"/>
+  <xacro:arg name="motor_calibration_mode_3" default="0"/>
+  <xacro:arg name="limit_max_torque_3" default="40.0"/>
+  <xacro:arg name="limit_max_velocity_3" default="20.0"/>
+  <xacro:arg name="limit_position_min_3" default="-6.283"/>
+  <xacro:arg name="limit_position_max_3" default="6.283"/>
+  <xacro:arg name="limit_max_acceleration_3" default="60.0"/>
+  <xacro:arg name="limit_max_deceleration_3" default="60.0"/>
+  <xacro:arg name="profile_velocity_3" default="12.0"/>
+  <xacro:arg name="profile_acceleration_3" default="30.0"/>
+  <xacro:arg name="profile_deceleration_3" default="30.0"/>
+  <xacro:arg name="profile_quick_stop_deceleration_3" default="50.0"/>
+  <xacro:arg name="output_encoder_3" default="0"/>
+  <xacro:arg name="output_encoder_default_baud_3" default="0"/>
+  <xacro:arg name="output_encoder_mode_3" default="0"/>
+  <xacro:arg name="output_encoder_calibration_mode_3" default="0"/>
+  <xacro:arg name="position_pid_kp_3" default="3.5"/>
+  <xacro:arg name="position_pid_ki_3" default="0.5"/>
+  <xacro:arg name="position_pid_kd_3" default="0.0"/>
+  <xacro:arg name="position_pid_windup_3" default="1.0"/>
+  <xacro:arg name="velocity_pid_kp_3" default="0.6"/>
+  <xacro:arg name="velocity_pid_ki_3" default="0.0005"/>
+  <xacro:arg name="velocity_pid_kd_3" default="0.0"/>
+  <xacro:arg name="velocity_pid_windup_3" default="0.25"/>
+  <xacro:arg name="impedance_kp_3" default="1.75"/>
+  <xacro:arg name="impedance_kd_3" default="0.02"/>
+  <xacro:arg name="user_gpio_configuration_3" default="0"/>
+  <xacro:arg name="reverse_direction_3" default="0"/>
+  <xacro:arg name="shunt_resistance_3" default="0.004"/>
+
+  <!-- Shared values are retained for compatibility with the current hardware plugin. -->
+  <xacro:arg name="md_torque_bandwidth_hz" default="1000.0"/>
+  <xacro:arg name="md_can_watchdog_ms" default="nan"/>
+  <xacro:arg name="md_limit_max_torque" default="40.0"/>
+  <xacro:arg name="md_limit_max_velocity" default="20.0"/>
+  <xacro:arg name="md_limit_max_acceleration" default="60.0"/>
+  <xacro:arg name="md_limit_max_deceleration" default="60.0"/>
+  <xacro:arg name="md_limit_position_min" default="-6.283"/>
+  <xacro:arg name="md_limit_position_max" default="6.283"/>
+  <xacro:arg name="md_profile_velocity" default="12.0"/>
+  <xacro:arg name="md_profile_acceleration" default="30.0"/>
+  <xacro:arg name="md_profile_deceleration" default="30.0"/>
+  <xacro:arg name="md_profile_quick_stop_deceleration" default="50.0"/>
+  <xacro:arg name="md_position_pid_kp" default="10.5"/>
+  <xacro:arg name="md_position_pid_ki" default="1.5"/>
+  <xacro:arg name="md_position_pid_kd" default="0.0"/>
+  <xacro:arg name="md_position_pid_windup" default="1.0"/>
+  <xacro:arg name="md_velocity_pid_kp" default="0.1"/>
+  <xacro:arg name="md_velocity_pid_ki" default="0.0005"/>
+  <xacro:arg name="md_velocity_pid_kd" default="0.0"/>
+  <xacro:arg name="md_velocity_pid_windup" default="0.25"/>
+  <xacro:arg name="md_impedance_kp" default="0.75"/>
+  <xacro:arg name="md_impedance_kd" default="0.02"/>
+
+  <material name="carbon">
+    <color rgba="0.22 0.25 0.30 1.0"/>
+  </material>
+  <material name="signal">
+    <color rgba="0.85 0.43 0.14 1.0"/>
+  </material>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.18 0.12 0.04"/>
+      </geometry>
+      <material name="carbon"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.18 0.12 0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <link name="link_1">
+    <visual>
+      <geometry>
+        <cylinder radius="0.025" length="0.18"/>
+      </geometry>
+      <origin xyz="0 0 0.09" rpy="0 0 0"/>
+      <material name="signal"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.025" length="0.18"/>
+      </geometry>
+      <origin xyz="0 0 0.09" rpy="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.4"/>
+      <origin xyz="0 0 0.09"/>
+      <inertia ixx="0.002" ixy="0.0" ixz="0.0" iyy="0.002" iyz="0.0" izz="0.001"/>
+    </inertial>
+  </link>
+
+  <link name="link_2">
+    <visual>
+      <geometry>
+        <cylinder radius="0.022" length="0.16"/>
+      </geometry>
+      <origin xyz="0 0 0.08" rpy="0 0 0"/>
+      <material name="signal"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.022" length="0.16"/>
+      </geometry>
+      <origin xyz="0 0 0.08" rpy="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.3"/>
+      <origin xyz="0 0 0.08"/>
+      <inertia ixx="0.0016" ixy="0.0" ixz="0.0" iyy="0.0016" iyz="0.0" izz="0.0008"/>
+    </inertial>
+  </link>
+
+  <link name="link_3">
+    <visual>
+      <geometry>
+        <cylinder radius="0.02" length="0.14"/>
+      </geometry>
+      <origin xyz="0 0 0.07" rpy="0 0 0"/>
+      <material name="signal"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.02" length="0.14"/>
+      </geometry>
+      <origin xyz="0 0 0.07" rpy="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.25"/>
+      <origin xyz="0 0 0.07"/>
+      <inertia ixx="0.0012" ixy="0.0" ixz="0.0" iyy="0.0012" iyz="0.0" izz="0.0006"/>
+    </inertial>
+  </link>
+
+  <joint name="joint_1" type="revolute">
+    <parent link="base_link"/>
+    <child link="link_1"/>
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit
+      lower="$(arg limit_position_min_1)"
+      upper="$(arg limit_position_max_1)"
+      effort="$(arg limit_max_torque_1)"
+      velocity="$(arg limit_max_velocity_1)"/>
+  </joint>
+
+  <joint name="joint_2" type="revolute">
+    <parent link="link_1"/>
+    <child link="link_2"/>
+    <origin xyz="0 0 0.18" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit
+      lower="$(arg limit_position_min_2)"
+      upper="$(arg limit_position_max_2)"
+      effort="$(arg limit_max_torque_2)"
+      velocity="$(arg limit_max_velocity_2)"/>
+  </joint>
+
+  <joint name="joint_3" type="revolute">
+    <parent link="link_2"/>
+    <child link="link_3"/>
+    <origin xyz="0 0 0.16" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit
+      lower="$(arg limit_position_min_3)"
+      upper="$(arg limit_position_max_3)"
+      effort="$(arg limit_max_torque_3)"
+      velocity="$(arg limit_max_velocity_3)"/>
+  </joint>
+
+  <ros2_control name="mab_hardware" type="system">
+    <hardware>
+      <plugin>mab_ros2_control/MABSystemHardware</plugin>
+      <param name="bus">$(arg bus)</param>
+      <param name="data_rate">$(arg data_rate)</param>
+      <param name="use_pds">$(arg use_pds)</param>
+      <param name="use_regular_can_frames">$(arg use_regular_can_frames)</param>
+      <param name="pds_id">$(arg pds_id)</param>
+      <param name="power_stage_socket">$(arg power_stage_socket)</param>
+      <param name="telemetry_divider">$(arg telemetry_divider)</param>
+      <param name="auto_enable_power_stage">$(arg auto_enable_power_stage)</param>
+      <param name="disable_power_stage_on_deactivate">$(arg disable_power_stage_on_deactivate)</param>
+      <param name="zero_on_activate">$(arg zero_on_activate)</param>
+      <param name="allow_no_connected_drives">$(arg allow_no_connected_drives)</param>
+      <param name="save_md_configuration_to_flash">$(arg save_md_configuration_to_flash)</param>
+      <param name="hold_position_on_activate_ms">$(arg hold_position_on_activate_ms)</param>
+      <param name="maintenance_reload_enabled">$(arg maintenance_reload_enabled)</param>
+      <param name="maintenance_restore_controller">$(arg maintenance_restore_controller)</param>
+      <param name="maintenance_service_timeout_ms">$(arg maintenance_service_timeout_ms)</param>
+      <param name="md_torque_bandwidth_hz">$(arg md_torque_bandwidth_hz)</param>
+      <param name="md_can_watchdog_ms">$(arg md_can_watchdog_ms)</param>
+      <param name="md_limit_max_torque">$(arg md_limit_max_torque)</param>
+      <param name="md_limit_max_velocity">$(arg md_limit_max_velocity)</param>
+      <param name="md_limit_max_acceleration">$(arg md_limit_max_acceleration)</param>
+      <param name="md_limit_max_deceleration">$(arg md_limit_max_deceleration)</param>
+      <param name="md_limit_position_min">$(arg md_limit_position_min)</param>
+      <param name="md_limit_position_max">$(arg md_limit_position_max)</param>
+      <param name="md_profile_velocity">$(arg md_profile_velocity)</param>
+      <param name="md_profile_acceleration">$(arg md_profile_acceleration)</param>
+      <param name="md_profile_deceleration">$(arg md_profile_deceleration)</param>
+      <param name="md_profile_quick_stop_deceleration">$(arg md_profile_quick_stop_deceleration)</param>
+      <param name="md_position_pid_kp">$(arg md_position_pid_kp)</param>
+      <param name="md_position_pid_ki">$(arg md_position_pid_ki)</param>
+      <param name="md_position_pid_kd">$(arg md_position_pid_kd)</param>
+      <param name="md_position_pid_windup">$(arg md_position_pid_windup)</param>
+      <param name="md_velocity_pid_kp">$(arg md_velocity_pid_kp)</param>
+      <param name="md_velocity_pid_ki">$(arg md_velocity_pid_ki)</param>
+      <param name="md_velocity_pid_kd">$(arg md_velocity_pid_kd)</param>
+      <param name="md_velocity_pid_windup">$(arg md_velocity_pid_windup)</param>
+      <param name="md_impedance_kp">$(arg md_impedance_kp)</param>
+      <param name="md_impedance_kd">$(arg md_impedance_kd)</param>
+    </hardware>
+
+    <joint name="joint_1">
+      <!-- Joint 1 uses MD0037 with an MA-p-45-36_KV80 motor and an external 38:1 reduction. -->
+      <param name="can_id">$(arg md_id_1)</param>
+      <param name="motor_name">$(arg motor_name_1)</param>
+      <param name="gear_ratio">$(arg gear_ratio_1)</param>
+      <param name="pole_pairs">$(arg motor_pole_pairs_1)</param>
+      <param name="kv">$(arg motor_kv_1)</param>
+      <param name="torque_constant">$(arg motor_torque_constant_1)</param>
+      <param name="max_current">$(arg motor_max_current_1)</param>
+      <param name="torque_bandwidth_hz">$(arg motor_torque_bandwidth_hz_1)</param>
+      <param name="friction">$(arg motor_friction_1)</param>
+      <param name="stiction">$(arg motor_stiction_1)</param>
+      <param name="motor_calibration_mode">$(arg motor_calibration_mode_1)</param>
+      <param name="shutdown_temp">$(arg motor_shutdown_temp_1)</param>
+      <param name="limit_max_torque">$(arg limit_max_torque_1)</param>
+      <param name="limit_max_velocity">$(arg limit_max_velocity_1)</param>
+      <param name="limit_position_min">$(arg limit_position_min_1)</param>
+      <param name="limit_position_max">$(arg limit_position_max_1)</param>
+      <param name="limit_max_acceleration">$(arg limit_max_acceleration_1)</param>
+      <param name="limit_max_deceleration">$(arg limit_max_deceleration_1)</param>
+      <param name="profile_velocity">$(arg profile_velocity_1)</param>
+      <param name="profile_acceleration">$(arg profile_acceleration_1)</param>
+      <param name="profile_deceleration">$(arg profile_deceleration_1)</param>
+      <param name="profile_quick_stop_deceleration">$(arg profile_quick_stop_deceleration_1)</param>
+      <param name="output_encoder">$(arg output_encoder_1)</param>
+      <param name="output_encoder_default_baud">$(arg output_encoder_default_baud_1)</param>
+      <param name="output_encoder_mode">$(arg output_encoder_mode_1)</param>
+      <param name="output_encoder_calibration_mode">$(arg output_encoder_calibration_mode_1)</param>
+      <param name="position_pid_kp">$(arg position_pid_kp_1)</param>
+      <param name="position_pid_ki">$(arg position_pid_ki_1)</param>
+      <param name="position_pid_kd">$(arg position_pid_kd_1)</param>
+      <param name="position_pid_windup">$(arg position_pid_windup_1)</param>
+      <param name="velocity_pid_kp">$(arg velocity_pid_kp_1)</param>
+      <param name="velocity_pid_ki">$(arg velocity_pid_ki_1)</param>
+      <param name="velocity_pid_kd">$(arg velocity_pid_kd_1)</param>
+      <param name="velocity_pid_windup">$(arg velocity_pid_windup_1)</param>
+      <param name="impedance_kp">$(arg impedance_kp_1)</param>
+      <param name="impedance_kd">$(arg impedance_kd_1)</param>
+      <param name="user_gpio_configuration">$(arg user_gpio_configuration_1)</param>
+      <param name="reverse_direction">$(arg reverse_direction_1)</param>
+      <param name="shunt_resistance">$(arg shunt_resistance_1)</param>
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <state_interface name="temperature"/>
+    </joint>
+
+    <joint name="joint_2">
+      <!-- Joint 2 uses MD0939 with an MA-p-40_10_K170 motor and an external 10:1 reduction. -->
+      <param name="can_id">$(arg md_id_2)</param>
+      <param name="motor_name">$(arg motor_name_2)</param>
+      <param name="gear_ratio">$(arg gear_ratio_2)</param>
+      <param name="pole_pairs">$(arg motor_pole_pairs_2)</param>
+      <param name="kv">$(arg motor_kv_2)</param>
+      <param name="torque_constant">$(arg motor_torque_constant_2)</param>
+      <param name="max_current">$(arg motor_max_current_2)</param>
+      <param name="torque_bandwidth_hz">$(arg motor_torque_bandwidth_hz_2)</param>
+      <param name="friction">$(arg motor_friction_2)</param>
+      <param name="stiction">$(arg motor_stiction_2)</param>
+      <param name="motor_calibration_mode">$(arg motor_calibration_mode_2)</param>
+      <param name="shutdown_temp">$(arg motor_shutdown_temp_2)</param>
+      <param name="limit_max_torque">$(arg limit_max_torque_2)</param>
+      <param name="limit_max_velocity">$(arg limit_max_velocity_2)</param>
+      <param name="limit_position_min">$(arg limit_position_min_2)</param>
+      <param name="limit_position_max">$(arg limit_position_max_2)</param>
+      <param name="limit_max_acceleration">$(arg limit_max_acceleration_2)</param>
+      <param name="limit_max_deceleration">$(arg limit_max_deceleration_2)</param>
+      <param name="profile_velocity">$(arg profile_velocity_2)</param>
+      <param name="profile_acceleration">$(arg profile_acceleration_2)</param>
+      <param name="profile_deceleration">$(arg profile_deceleration_2)</param>
+      <param name="profile_quick_stop_deceleration">$(arg profile_quick_stop_deceleration_2)</param>
+      <param name="output_encoder">$(arg output_encoder_2)</param>
+      <param name="output_encoder_default_baud">$(arg output_encoder_default_baud_2)</param>
+      <param name="output_encoder_mode">$(arg output_encoder_mode_2)</param>
+      <param name="output_encoder_calibration_mode">$(arg output_encoder_calibration_mode_2)</param>
+      <param name="position_pid_kp">$(arg position_pid_kp_2)</param>
+      <param name="position_pid_ki">$(arg position_pid_ki_2)</param>
+      <param name="position_pid_kd">$(arg position_pid_kd_2)</param>
+      <param name="position_pid_windup">$(arg position_pid_windup_2)</param>
+      <param name="velocity_pid_kp">$(arg velocity_pid_kp_2)</param>
+      <param name="velocity_pid_ki">$(arg velocity_pid_ki_2)</param>
+      <param name="velocity_pid_kd">$(arg velocity_pid_kd_2)</param>
+      <param name="velocity_pid_windup">$(arg velocity_pid_windup_2)</param>
+      <param name="impedance_kp">$(arg impedance_kp_2)</param>
+      <param name="impedance_kd">$(arg impedance_kd_2)</param>
+      <param name="user_gpio_configuration">$(arg user_gpio_configuration_2)</param>
+      <param name="reverse_direction">$(arg reverse_direction_2)</param>
+      <param name="shunt_resistance">$(arg shunt_resistance_2)</param>
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <state_interface name="temperature"/>
+    </joint>
+
+    <joint name="joint_3">
+      <!-- Joint 3 uses MD0941 with an MA-p-40_10_K170 motor and an external 10:1 reduction. -->
+      <param name="can_id">$(arg md_id_3)</param>
+      <param name="motor_name">$(arg motor_name_3)</param>
+      <param name="gear_ratio">$(arg gear_ratio_3)</param>
+      <param name="pole_pairs">$(arg motor_pole_pairs_3)</param>
+      <param name="kv">$(arg motor_kv_3)</param>
+      <param name="torque_constant">$(arg motor_torque_constant_3)</param>
+      <param name="max_current">$(arg motor_max_current_3)</param>
+      <param name="torque_bandwidth_hz">$(arg motor_torque_bandwidth_hz_3)</param>
+      <param name="friction">$(arg motor_friction_3)</param>
+      <param name="stiction">$(arg motor_stiction_3)</param>
+      <param name="motor_calibration_mode">$(arg motor_calibration_mode_3)</param>
+      <param name="shutdown_temp">$(arg motor_shutdown_temp_3)</param>
+      <param name="limit_max_torque">$(arg limit_max_torque_3)</param>
+      <param name="limit_max_velocity">$(arg limit_max_velocity_3)</param>
+      <param name="limit_position_min">$(arg limit_position_min_3)</param>
+      <param name="limit_position_max">$(arg limit_position_max_3)</param>
+      <param name="limit_max_acceleration">$(arg limit_max_acceleration_3)</param>
+      <param name="limit_max_deceleration">$(arg limit_max_deceleration_3)</param>
+      <param name="profile_velocity">$(arg profile_velocity_3)</param>
+      <param name="profile_acceleration">$(arg profile_acceleration_3)</param>
+      <param name="profile_deceleration">$(arg profile_deceleration_3)</param>
+      <param name="profile_quick_stop_deceleration">$(arg profile_quick_stop_deceleration_3)</param>
+      <param name="output_encoder">$(arg output_encoder_3)</param>
+      <param name="output_encoder_default_baud">$(arg output_encoder_default_baud_3)</param>
+      <param name="output_encoder_mode">$(arg output_encoder_mode_3)</param>
+      <param name="output_encoder_calibration_mode">$(arg output_encoder_calibration_mode_3)</param>
+      <param name="position_pid_kp">$(arg position_pid_kp_3)</param>
+      <param name="position_pid_ki">$(arg position_pid_ki_3)</param>
+      <param name="position_pid_kd">$(arg position_pid_kd_3)</param>
+      <param name="position_pid_windup">$(arg position_pid_windup_3)</param>
+      <param name="velocity_pid_kp">$(arg velocity_pid_kp_3)</param>
+      <param name="velocity_pid_ki">$(arg velocity_pid_ki_3)</param>
+      <param name="velocity_pid_kd">$(arg velocity_pid_kd_3)</param>
+      <param name="velocity_pid_windup">$(arg velocity_pid_windup_3)</param>
+      <param name="impedance_kp">$(arg impedance_kp_3)</param>
+      <param name="impedance_kd">$(arg impedance_kd_3)</param>
+      <param name="user_gpio_configuration">$(arg user_gpio_configuration_3)</param>
+      <param name="reverse_direction">$(arg reverse_direction_3)</param>
+      <param name="shunt_resistance">$(arg shunt_resistance_3)</param>
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <state_interface name="temperature"/>
+    </joint>
+
+    <sensor name="mab_power_stage">
+      <state_interface name="bus_voltage"/>
+      <state_interface name="pds_temperature"/>
+      <state_interface name="pds_temperature_limit"/>
+      <state_interface name="output_voltage"/>
+      <state_interface name="load_current"/>
+      <state_interface name="power_stage_temperature"/>
+      <state_interface name="power_stage_temperature_limit"/>
+      <state_interface name="enabled"/>
+    </sensor>
+  </ros2_control>
+</robot>
