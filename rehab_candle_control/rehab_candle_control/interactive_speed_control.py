@@ -93,13 +93,13 @@ class InteractiveSpeedControl(Node):
         self._tty_file = None
 
         self._setup_complete = False
-        self._setup_stage = "wait_services"
+        self._setup_stage = "wait_core_services"
         self._setup_future = None
-        self._setup_wait_log_once = False
         self._setup_wait_tick = 0
-        self._required_services = {
+        self._setup_retry_count = 0
+        self._power_stage_service = power_stage_service
+        self._core_services = {
             "/pds/add_pds": self.add_pds_client,
-            power_stage_service: self.enable_power_stage_client,
             "/md/add_mds": self.add_mds_client,
             "/md/set_mode": self.set_mode_client,
             "/md/enable": self.enable_md_client,
@@ -143,6 +143,23 @@ class InteractiveSpeedControl(Node):
 
         raise RuntimeError("md_ids must be a list or YAML list string")
 
+    def _missing_services(self, services: Dict[str, object]) -> List[str]:
+        missing = []
+        for service_name, client in services.items():
+            if not client.wait_for_service(timeout_sec=0.0):
+                missing.append(service_name)
+        return missing
+
+    def _mark_setup_retry(self, reason: str) -> None:
+        self._setup_retry_count += 1
+        if self._setup_retry_count == 1 or self._setup_retry_count % 5 == 0:
+            self.get_logger().warn(
+                f"Setup stage '{self._setup_stage}' failed ({reason}); retrying."
+            )
+
+    def _mark_setup_success(self) -> None:
+        self._setup_retry_count = 0
+
     def _try_setup(self) -> None:
         if self._setup_complete:
             return
@@ -150,33 +167,44 @@ class InteractiveSpeedControl(Node):
         if self._setup_future is not None:
             return
 
-        if self._setup_stage == "wait_services":
-            if not self._setup_wait_log_once:
-                self.get_logger().info("Waiting for PDS/MD services to become available...")
+        if self._setup_stage == "wait_core_services":
+            missing = self._missing_services(self._core_services)
+            if missing:
+                self._setup_wait_tick += 1
+                if self._setup_wait_tick == 1 or self._setup_wait_tick % 10 == 0:
+                    self.get_logger().info(
+                        "Waiting for services: " + ", ".join(missing)
+                    )
+                return
+
+            self._setup_wait_tick = 0
+            self.get_logger().info("Core MD/PDS services are ready.")
+
+            if self.enable_power_stage_client.wait_for_service(timeout_sec=0.0):
                 self.get_logger().info(
-                    "Expected services: " + ", ".join(self._required_services.keys())
+                    "Power-stage service already exists. Skipping PDS add step."
                 )
-                self._setup_wait_log_once = True
-            self._setup_wait_tick += 1
-
-            ready = True
-            ready = ready and self._wait_for_service(self.add_pds_client, "pds/add_pds")
-            ready = ready and self._wait_for_service(
-                self.enable_power_stage_client,
-                f"pds/id_{self.pds_id}/enable_ps_{self.power_stage_socket}",
-            )
-            ready = ready and self._wait_for_service(self.add_mds_client, "md/add_mds")
-            ready = ready and self._wait_for_service(self.set_mode_client, "md/set_mode")
-            ready = ready and self._wait_for_service(self.enable_md_client, "md/enable")
-
-            self.get_logger().info("All services ready. Starting setup sequence.")
-            self._setup_stage = "add_pds"
+                self._setup_stage = "enable_power_stage"
+            else:
+                self._setup_stage = "add_pds"
 
         if self._setup_stage == "add_pds":
             req = AddDevices.Request()
             req.device_ids = [self.pds_id]
             self._start_setup_call(self.add_pds_client, req)
             return
+
+        if self._setup_stage == "wait_power_stage_service":
+            if not self.enable_power_stage_client.wait_for_service(timeout_sec=0.2):
+                self._setup_wait_tick += 1
+                if self._setup_wait_tick == 1 or self._setup_wait_tick % 10 == 0:
+                    self.get_logger().info(
+                        f"Waiting for service: {self._power_stage_service}"
+                    )
+                return
+            self._setup_wait_tick = 0
+            self.get_logger().info("Power-stage service is ready.")
+            self._setup_stage = "enable_power_stage"
 
         if self._setup_stage == "enable_power_stage":
             req = GenericPds.Request()
@@ -212,51 +240,74 @@ class InteractiveSpeedControl(Node):
         try:
             rsp = future.result()
         except Exception as exc:
-            self.get_logger().error(f"Setup stage '{self._setup_stage}' failed with exception: {exc}")
+            self._mark_setup_retry(f"exception: {exc}")
             return
 
         if rsp is None:
-            self.get_logger().error(f"Setup stage '{self._setup_stage}' returned no response")
+            self._mark_setup_retry("no response")
             return
 
         if self._setup_stage == "add_pds":
             if not rsp.success or not rsp.success[0]:
-                self.get_logger().error(f"Failed to add PDS device {self.pds_id}: {rsp.success}")
+                if self.enable_power_stage_client.wait_for_service(timeout_sec=0.0):
+                    self.get_logger().warn(
+                        "PDS add returned failure, but power-stage service is already available. "
+                        "Continuing setup."
+                    )
+                    self._mark_setup_success()
+                    self._setup_stage = "enable_power_stage"
+                    return
+                self._mark_setup_retry(
+                    f"unable to add PDS device {self.pds_id}: {rsp.success}"
+                )
                 return
+            self._mark_setup_success()
             self.get_logger().info("✓ PDS device added")
-            self._setup_stage = "enable_power_stage"
+            self._setup_stage = "wait_power_stage_service"
             return
 
         if self._setup_stage == "enable_power_stage":
             if not rsp.success or not rsp.success[0]:
-                self.get_logger().error(
-                    f"Failed to enable power stage at socket {self.power_stage_socket}: {rsp.success}"
+                self._mark_setup_retry(
+                    f"unable to enable power stage at socket {self.power_stage_socket}: {rsp.success}"
                 )
                 return
+            self._mark_setup_success()
             self.get_logger().info("✓ Power stage enabled")
             self._setup_stage = "add_mds"
             return
 
         if self._setup_stage == "add_mds":
-            if len(rsp.success) != len(self.md_ids) or not all(rsp.success):
-                self.get_logger().error(f"Failed to add all MD devices: {rsp.success}")
+            if len(rsp.success) != len(self.md_ids):
+                self._mark_setup_retry(
+                    f"invalid response while adding MD devices: {rsp.success}"
+                )
                 return
+            if not all(rsp.success):
+                self.get_logger().warn(
+                    "Some MD add operations failed. Continuing setup in case devices are already "
+                    f"present: {rsp.success}"
+                )
+            self._mark_setup_success()
             self.get_logger().info("✓ MD motors added")
             self._setup_stage = "set_mode"
             return
 
         if self._setup_stage == "set_mode":
             if len(rsp.success) != len(self.md_ids) or not all(rsp.success):
-                self.get_logger().error(f"Failed to set MD mode: {rsp.success}")
+                self._mark_setup_retry(f"failed to set MD mode: {rsp.success}")
+                self._setup_stage = "add_mds"
                 return
+            self._mark_setup_success()
             self.get_logger().info("✓ MD mode set to VELOCITY_PID")
             self._setup_stage = "enable_mds"
             return
 
         if self._setup_stage == "enable_mds":
             if len(rsp.success) != len(self.md_ids) or not all(rsp.success):
-                self.get_logger().error(f"Failed to enable all MD devices: {rsp.success}")
+                self._mark_setup_retry(f"failed to enable all MD devices: {rsp.success}")
                 return
+            self._mark_setup_success()
             self.get_logger().info("✓ MD motors enabled")
             self._enable_raw_keyboard()
             self._setup_complete = True

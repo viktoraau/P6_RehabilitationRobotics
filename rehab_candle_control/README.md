@@ -10,15 +10,15 @@ For the main `ros2_control` integration (hardware profiles, controller manager, 
 
 ## What it does
 
-1. Starts the candle_ros2 container (MD + PDS nodes).
+1. Optionally starts the `candle_ros2` container (MD + PDS nodes).
 2. Adds PDS device with ID 100.
 3. Enables power stage module at socket 2.
 4. Adds MD actuators with IDs 37, 939, 941.
 5. Sets MD mode to VELOCITY_PID and enables all drives.
 6. Publishes md/motion_command with target velocities controlled from keyboard.
-7. Publishes combined telemetry on rehab/telemetry (JSON) for visualization:
-   - bus voltage, power stage output voltage, power stage load current
-   - per motor position, speed, and torque
+7. Publishes telemetry topics for plotting/monitoring:
+   - `rehab/telemetry/pds`: bus voltage, power stage output voltage, power stage load current
+   - `rehab/telemetry/joint_<id>`: position, speed, torque, and commanded speed
 
 ## Build
 
@@ -48,11 +48,13 @@ ros2 launch rehab_candle_control rehab_bringup.launch.py
 - `md/joint_states` (from candle_ros2): position, speed, torque per motor
 - `pds/id_100/control_module` (from candle_ros2): bus voltage
 - `pds/id_100/power_stage_2` (from candle_ros2): output voltage, load current
-- `rehab/telemetry` (from this package): merged JSON stream for plotting/dashboard use
+- `rehab/telemetry/pds` (from this package): `[bus_voltage_v, output_voltage_v, load_current_a]`
+- `rehab/telemetry/joint_<id>` (from this package): `[position, speed, torque, target_speed]`
 
 ## Optional launch overrides
 
 ```bash
 ros2 launch rehab_candle_control rehab_bringup.launch.py \
+  start_candle_backend:=false \
   pds_id:=100 power_stage_socket:=2 md_ids:='[37, 939, 941]' speed_step:=0.5 max_speed:=8.0
 ```

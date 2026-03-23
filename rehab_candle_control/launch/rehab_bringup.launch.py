@@ -3,12 +3,14 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    start_candle_backend = LaunchConfiguration("start_candle_backend")
     bus = LaunchConfiguration("bus")
     data_rate = LaunchConfiguration("data_rate")
     default_qos = LaunchConfiguration("default_qos")
@@ -25,6 +27,7 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument("start_candle_backend", default_value="true"),
             DeclareLaunchArgument("bus", default_value="USB"),
             DeclareLaunchArgument("data_rate", default_value="1M"),
             DeclareLaunchArgument("default_qos", default_value="Reliable"),
@@ -38,6 +41,7 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(
                     os.path.join(candle_ros2_launch_dir, "both_launch.py")
                 ),
+                condition=IfCondition(start_candle_backend),
                 launch_arguments={
                     "bus": bus,
                     "data_rate": data_rate,
