@@ -112,12 +112,13 @@
   <ros2_control name="mab_hardware" type="system">
     <hardware>
       <plugin>mab_ros2_control/MABSystemHardware</plugin>
-      <param name="bus">USB</param>
-      <param name="data_rate">8M</param>
+      <param name="bus">SPI</param>
+      <param name="data_rate">5M</param>
       <param name="use_pds">true</param>
-      <param name="use_regular_can_frames">true</param>
+      <param name="use_regular_can_frames">false</param>
       <param name="pds_id">100</param>
       <param name="power_stage_socket">2</param>
+      <param name="fast_mode">false</param>
       <param name="telemetry_divider">50</param>
       <param name="auto_enable_power_stage">true</param>
       <param name="disable_power_stage_on_deactivate">false</param>
@@ -187,17 +188,17 @@
       <param name="velocity_pid_ki">0.0005</param>
       <param name="velocity_pid_kd">0.0</param>
       <param name="velocity_pid_windup">0.25</param>
-      <param name="impedance_kp">0.75</param>
-      <param name="impedance_kd">0.02</param>
+      <param name="impedance_kp">0.0</param>
+      <param name="impedance_kd">0.0</param>
       <param name="user_gpio_configuration">0</param>
       <param name="reverse_direction">0</param>
       <param name="shunt_resistance">0.004</param>
       <command_interface name="position"/>
       <command_interface name="velocity"/>
+      <command_interface name="effort"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <state_interface name="temperature"/>
     </joint>
     <joint name="joint_2">
       <!-- Joint 2 uses MD0939 with an MA-p-40_10_K170 motor and an external 10:1 reduction. -->
@@ -235,17 +236,17 @@
       <param name="velocity_pid_ki">0.0005</param>
       <param name="velocity_pid_kd">0.0</param>
       <param name="velocity_pid_windup">0.25</param>
-      <param name="impedance_kp">1.75</param>
-      <param name="impedance_kd">0.02</param>
+      <param name="impedance_kp">0.0</param>
+      <param name="impedance_kd">0.0</param>
       <param name="user_gpio_configuration">0</param>
       <param name="reverse_direction">0</param>
       <param name="shunt_resistance">0.004</param>
       <command_interface name="position"/>
       <command_interface name="velocity"/>
+      <command_interface name="effort"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <state_interface name="temperature"/>
     </joint>
     <joint name="joint_3">
       <!-- Joint 3 uses MD0941 with an MA-p-40_10_K170 motor and an external 10:1 reduction. -->
@@ -283,27 +284,20 @@
       <param name="velocity_pid_ki">0.0005</param>
       <param name="velocity_pid_kd">0.0</param>
       <param name="velocity_pid_windup">0.25</param>
-      <param name="impedance_kp">1.75</param>
-      <param name="impedance_kd">0.02</param>
+      <param name="impedance_kp">0.0</param>
+      <param name="impedance_kd">0.0</param>
       <param name="user_gpio_configuration">0</param>
       <param name="reverse_direction">0</param>
       <param name="shunt_resistance">0.004</param>
       <command_interface name="position"/>
       <command_interface name="velocity"/>
+      <command_interface name="effort"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <state_interface name="temperature"/>
     </joint>
     <sensor name="mab_power_stage">
       <state_interface name="bus_voltage"/>
-      <state_interface name="pds_temperature"/>
-      <state_interface name="pds_temperature_limit"/>
-      <state_interface name="output_voltage"/>
-      <state_interface name="load_current"/>
-      <state_interface name="power_stage_temperature"/>
-      <state_interface name="power_stage_temperature_limit"/>
-      <state_interface name="enabled"/>
     </sensor>
   </ros2_control>
 </robot>

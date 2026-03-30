@@ -24,6 +24,7 @@ CONTROLLER_MANAGER="/controller_manager"
 TRAJ_CONTROLLER="joint_trajectory_controller"
 POSITION_CONTROLLER="joint_group_position_controller"
 VELOCITY_CONTROLLER="joint_group_velocity_controller"
+EFFORT_CONTROLLER="joint_group_effort_controller"
 
 DEFAULT_JOINTS=(joint_1 joint_2 joint_3)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -173,6 +174,7 @@ ensure_command_controllers_loaded() {
   ensure_controller_loaded "$TRAJ_CONTROLLER"
   ensure_controller_loaded "$POSITION_CONTROLLER"
   ensure_controller_loaded "$VELOCITY_CONTROLLER"
+  ensure_controller_loaded "$EFFORT_CONTROLLER"
 }
 
 switch_command_controller() {
@@ -184,15 +186,19 @@ switch_command_controller() {
   case "$target" in
     trajectory)
       activate="$TRAJ_CONTROLLER"
-      deactivate=("$POSITION_CONTROLLER" "$VELOCITY_CONTROLLER")
+      deactivate=("$POSITION_CONTROLLER" "$VELOCITY_CONTROLLER" "$EFFORT_CONTROLLER")
       ;;
     position)
       activate="$POSITION_CONTROLLER"
-      deactivate=("$TRAJ_CONTROLLER" "$VELOCITY_CONTROLLER")
+      deactivate=("$TRAJ_CONTROLLER" "$VELOCITY_CONTROLLER" "$EFFORT_CONTROLLER")
       ;;
     velocity)
       activate="$VELOCITY_CONTROLLER"
-      deactivate=("$TRAJ_CONTROLLER" "$POSITION_CONTROLLER")
+      deactivate=("$TRAJ_CONTROLLER" "$POSITION_CONTROLLER" "$EFFORT_CONTROLLER")
+      ;;
+    effort)
+      activate="$EFFORT_CONTROLLER"
+      deactivate=("$TRAJ_CONTROLLER" "$POSITION_CONTROLLER" "$VELOCITY_CONTROLLER")
       ;;
     *)
       echo "Unknown mode: $target (expected: trajectory|position|velocity)" >&2
@@ -221,6 +227,10 @@ switch_to_velocity() {
   switch_command_controller velocity
 }
 
+switch_to_effort() {
+  switch_command_controller effort
+}
+
 normalize_mode() {
   local mode_in="$1"
   case "$mode_in" in
@@ -232,6 +242,9 @@ normalize_mode() {
       ;;
     vel|velocity)
       echo "velocity"
+      ;;
+    eff|effort)
+      echo "effort"
       ;;
     *)
       return 1
@@ -247,7 +260,7 @@ normalize_mode() {
 shift_controller() {
   local mode
   if ! mode="$(normalize_mode "${1:-}")"; then
-    echo "Unknown mode: ${1:-} (expected traj|pos|vel)" >&2
+    echo "Unknown mode: ${1:-} (expected traj|pos|vel|eff)" >&2
     return 1
   fi
   switch_command_controller "$mode"
@@ -307,6 +320,10 @@ send_velocity_cmd() {
   send_array_command "$VELOCITY_CONTROLLER" "$@"
 }
 
+send_effort_cmd() {
+  send_array_command "$EFFORT_CONTROLLER" "$@"
+}
+
 send_trajectory_cmd() {
   if (( $# == 0 )); then
     echo "No trajectory positions provided." >&2
@@ -334,7 +351,7 @@ send_trajectory_cmd() {
 send_cmd() {
   local mode
   if ! mode="$(normalize_mode "${1:-}")"; then
-    echo "Unknown mode: ${1:-} (expected traj|pos|vel)" >&2
+    echo "Unknown mode: ${1:-} (expected traj|pos|vel|eff)" >&2
     return 1
   fi
   shift || true
@@ -343,6 +360,7 @@ send_cmd() {
     trajectory) send_trajectory_cmd "$@" ;;
     position) send_position_cmd "$@" ;;
     velocity) send_velocity_cmd "$@" ;;
+    effort) send_effort_cmd "$@" ;;
   esac
 }
 
@@ -374,14 +392,16 @@ Usage:
 
   $0 controller_status
   $0 ensure_command_controllers_loaded
-  $0 shift_controller <traj|pos|vel>
+  $0 shift_controller <traj|pos|vel|eff>
   $0 switch_to_trajectory
   $0 switch_to_position
   $0 switch_to_velocity
+  $0 switch_to_effort
 
-  $0 send_cmd <traj|pos|vel> <j1> <j2> <j3>
+  $0 send_cmd <traj|pos|vel|eff> <j1> <j2> <j3>
   $0 send_position_cmd <j1> <j2> <j3>
   $0 send_velocity_cmd <j1> <j2> <j3>
+  $0 send_effort_cmd <j1> <j2> <j3>
   $0 switch_and_send_position <j1> <j2> <j3>
   $0 switch_and_send_velocity <j1> <j2> <j3>
 
@@ -420,10 +440,12 @@ main() {
     switch_to_trajectory) switch_to_trajectory "$@" ;;
     switch_to_position) switch_to_position "$@" ;;
     switch_to_velocity) switch_to_velocity "$@" ;;
+    switch_to_effort) switch_to_effort "$@" ;;
 
     send_cmd) send_cmd "$@" ;;
     send_position_cmd) send_position_cmd "$@" ;;
     send_velocity_cmd) send_velocity_cmd "$@" ;;
+    send_effort_cmd) send_effort_cmd "$@" ;;
     switch_and_send_position) switch_and_send_position "$@" ;;
     switch_and_send_velocity) switch_and_send_velocity "$@" ;;
 

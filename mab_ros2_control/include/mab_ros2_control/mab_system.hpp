@@ -66,7 +66,8 @@ private:
     enum class CommandMode
     {
       POSITION,
-      VELOCITY
+      VELOCITY,
+      IMPEDANCE
     };
 
     std::string name;
@@ -121,19 +122,26 @@ private:
 
     bool has_position_command = false;
     bool has_velocity_command = false;
+    bool has_effort_command = false;
     bool has_position_state = false;
     bool has_velocity_state = false;
     bool has_effort_state = false;
-    bool has_temperature_state = false;
+    bool has_voltage_state = false;
 
     bool connected = false;
     CommandMode active_command_mode = CommandMode::POSITION;
     double last_position_command = 0.0;
     double last_velocity_command = 0.0;
+    double last_effort_command = 0.0;
+    std::optional<float> last_sent_motor_position_command;
+    std::optional<float> last_sent_motor_velocity_command;
+    std::optional<float> last_sent_motor_effort_command;
     double state_position = 0.0;
     double state_velocity = 0.0;
     double state_effort = 0.0;
-    double state_temperature = 0.0;
+    double state_voltage = 0.0;
+    size_t consecutive_read_failures = 0;
+    size_t consecutive_write_failures = 0;
 
     std::unique_ptr<mab::MD> md;
   };
@@ -142,13 +150,6 @@ private:
   {
     bool exported = false;
     double bus_voltage = 0.0;
-    double pds_temperature = 0.0;
-    double pds_temperature_limit = 0.0;
-    double output_voltage = 0.0;
-    double load_current = 0.0;
-    double power_stage_temperature = 0.0;
-    double power_stage_temperature_limit = 0.0;
-    double enabled = 0.0;
   };
 
   struct CandleDeleter
@@ -228,6 +229,7 @@ private:
   bool use_regular_can_frames_ = true;
   int pds_id_ = 100;
   int power_stage_socket_ = 2;
+  bool fast_mode_ = false;
   int telemetry_divider_ = 10;
   bool auto_enable_power_stage_ = true;
   bool disable_power_stage_on_deactivate_ = true;

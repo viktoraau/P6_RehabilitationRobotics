@@ -24,6 +24,11 @@ namespace mab_ros2_control
 
 namespace
 {
+constexpr int kPdsInitAttempts = 5;
+constexpr auto kPdsRetryDelay = std::chrono::milliseconds(150);
+constexpr int kJointReadRetryAttempts = 3;
+constexpr int kJointWriteRetryAttempts = 3;
+constexpr float kCommandChangeEpsilon = 1e-5F;
 
 double clamp_symmetric(const double value, const double limit)
 {
@@ -44,8 +49,17 @@ bool is_command_interface_claimed(const std::string & interface_name)
   return (
     interface_name.ends_with("/" + std::string(hardware_interface::HW_IF_POSITION)) ||
     interface_name.ends_with("/" + std::string(hardware_interface::HW_IF_VELOCITY)) ||
+    interface_name.ends_with("/" + std::string(hardware_interface::HW_IF_EFFORT)) ||
     interface_name == hardware_interface::HW_IF_POSITION ||
-    interface_name == hardware_interface::HW_IF_VELOCITY);
+    interface_name == hardware_interface::HW_IF_VELOCITY ||
+    interface_name == hardware_interface::HW_IF_EFFORT);
+}
+
+bool has_meaningful_change(
+  const std::optional<float> & previous_value, const float next_value,
+  const float epsilon = kCommandChangeEpsilon)
+{
+  return !previous_value.has_value() || std::fabs(*previous_value - next_value) > epsilon;
 }
 
 bool parse_joint_interface_name(
@@ -116,8 +130,8 @@ hardware_interface::CallbackReturn MABSystemHardware::on_init(
   }
 
   RCLCPP_INFO(
-    get_logger(), "Configured MAB hardware with %zu joints on %s at %s",
-    joints_.size(), bus_.c_str(), data_rate_.c_str());
+    get_logger(), "Configured MAB hardware with %zu joints on %s at %s (fast_mode=%s)",
+    joints_.size(), bus_.c_str(), data_rate_.c_str(), fast_mode_ ? "true" : "false");
   return CallbackReturn::SUCCESS;
 }
 
@@ -142,6 +156,15 @@ hardware_interface::CallbackReturn MABSystemHardware::on_activate(
 
   size_t connected_drives = 0;
   for (auto & joint : joints_) {
+    if (joint.can_id == 0) {
+      joint.connected = false;
+      joint.md.reset();
+      RCLCPP_INFO(
+        get_logger(), "Skipping drive activation for %s because can_id is set to 0.",
+        joint.name.c_str());
+      continue;
+    }
+
     if (activate_drive(joint)) {
       ++connected_drives;
       continue;
@@ -240,52 +263,84 @@ hardware_interface::return_type MABSystemHardware::read(
     return hardware_interface::return_type::OK;
   }
 
+  const bool is_telemetry_cycle =
+    (read_cycle_counter_ % static_cast<size_t>(std::max(1, telemetry_divider_)) == 0);
+
   for (auto & joint : joints_) {
     if (!joint.connected || !joint.md) {
       continue;
     }
 
-    const auto motor_position = joint.md->getPosition();
-    const auto motor_velocity = joint.md->getVelocity();
-    const auto motor_torque = joint.md->getTorque();
-    const auto motor_temperature = joint.md->getTemperature();
+    // --- Core state read (pos, vel, torque) with retries ---
+    bool read_ok = false;
 
-    if (
-      motor_position.second != mab::MD::Error_t::OK ||
-      motor_velocity.second != mab::MD::Error_t::OK ||
-      motor_torque.second != mab::MD::Error_t::OK ||
-      motor_temperature.second != mab::MD::Error_t::OK)
-    {
-      RCLCPP_ERROR(
-        get_logger(), "Read failed for drive %u (%s)", joint.can_id, joint.name.c_str());
-      return hardware_interface::return_type::ERROR;
+    for (int attempt = 1; attempt <= kJointReadRetryAttempts; ++attempt) {
+      const auto read_result = (joint.has_effort_state && !fast_mode_) ?
+        joint.md->readRegisters(
+        joint.md->m_mdRegisters.mainEncoderPosition,
+        joint.md->m_mdRegisters.mainEncoderVelocity,
+        joint.md->m_mdRegisters.motorTorque) :
+        joint.md->readRegisters(
+        joint.md->m_mdRegisters.mainEncoderPosition,
+        joint.md->m_mdRegisters.mainEncoderVelocity);
+
+      if (read_result == mab::MD::Error_t::OK) {
+        read_ok = true;
+        joint.consecutive_read_failures = 0;
+        break;
+      }
     }
 
-    joint.state_position = static_cast<double>(motor_position.first) * joint.gear_ratio;
-    joint.state_velocity = static_cast<double>(motor_velocity.first) * joint.gear_ratio;
-    joint.state_effort = static_cast<double>(motor_torque.first) / joint.gear_ratio;
-    joint.state_temperature = static_cast<double>(motor_temperature.first);
+    if (!read_ok) {
+      ++joint.consecutive_read_failures;
+      // Never deactivate hardware on read failures — hold the last valid state.
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Read failed for drive %u (%s) after %d retries; holding last state "
+        "(%zu consecutive failures).",
+        joint.can_id, joint.name.c_str(), kJointReadRetryAttempts,
+        joint.consecutive_read_failures);
+      // State interfaces keep the previously published values — skip update.
+      // Fall through to voltage read below (it's independent).
+    } else {
+      joint.state_position =
+        static_cast<double>(joint.md->m_mdRegisters.mainEncoderPosition.value) * joint.gear_ratio;
+      joint.state_velocity =
+        static_cast<double>(joint.md->m_mdRegisters.mainEncoderVelocity.value) * joint.gear_ratio;
+      if (joint.has_effort_state && !fast_mode_) {
+        joint.state_effort =
+          static_cast<double>(joint.md->m_mdRegisters.motorTorque.value) / joint.gear_ratio;
+      }
 
-    if (joint.has_position_state) {
-      set_state(joint.name + "/" + hardware_interface::HW_IF_POSITION, joint.state_position);
+      if (joint.has_position_state) {
+        set_state(joint.name + "/" + hardware_interface::HW_IF_POSITION, joint.state_position);
+      }
+      if (joint.has_velocity_state) {
+        set_state(joint.name + "/" + hardware_interface::HW_IF_VELOCITY, joint.state_velocity);
+      }
+      if (joint.has_effort_state) {
+        set_state(joint.name + "/" + hardware_interface::HW_IF_EFFORT, joint.state_effort);
+      }
     }
-    if (joint.has_velocity_state) {
-      set_state(joint.name + "/" + hardware_interface::HW_IF_VELOCITY, joint.state_velocity);
-    }
-    if (joint.has_effort_state) {
-      set_state(joint.name + "/" + hardware_interface::HW_IF_EFFORT, joint.state_effort);
-    }
-    if (joint.has_temperature_state) {
-      set_state(joint.name + "/" + hardware_interface::HW_IF_TEMPERATURE, joint.state_temperature);
+
+    // --- Per-joint voltage read on the telemetry divider cycle ---
+    if (joint.has_voltage_state && is_telemetry_cycle) {
+      if (joint.md->readRegisters(joint.md->m_mdRegisters.dcBusVoltage) ==
+        mab::MD::Error_t::OK)
+      {
+        joint.state_voltage =
+          static_cast<double>(joint.md->m_mdRegisters.dcBusVoltage.value);
+        set_state(joint.name + "/voltage", joint.state_voltage);
+      }
+      // On failure the previous voltage sample is retained — no action needed.
     }
   }
 
   ++read_cycle_counter_;
   if (
-    use_pds_ && power_stage_state_.exported &&
-    read_cycle_counter_ % static_cast<size_t>(std::max(1, telemetry_divider_)) == 0)
+    use_pds_ && power_stage_state_.exported && is_telemetry_cycle)
   {
-    return read_power_stage_telemetry();
+    read_power_stage_telemetry();
   }
 
   return hardware_interface::return_type::OK;
@@ -323,6 +378,7 @@ hardware_interface::return_type MABSystemHardware::write(
 
     double joint_position_command = joint.last_position_command;
     double joint_velocity_command = joint.last_velocity_command;
+    double joint_effort_command = joint.last_effort_command;
 
     if (!command_hold_active) {
       if (joint.has_position_command) {
@@ -332,6 +388,10 @@ hardware_interface::return_type MABSystemHardware::write(
       if (joint.has_velocity_command) {
         joint_velocity_command =
           get_command<double>(joint.name + "/" + hardware_interface::HW_IF_VELOCITY);
+      }
+      if (joint.has_effort_command) {
+        joint_effort_command =
+          get_command<double>(joint.name + "/" + hardware_interface::HW_IF_EFFORT);
       }
     } else {
       // During the hold window, do not touch drive targets; just keep the last seeded values.
@@ -344,44 +404,112 @@ hardware_interface::return_type MABSystemHardware::write(
     if (!std::isfinite(joint_velocity_command)) {
       joint_velocity_command = 0.0;
     }
+    if (!std::isfinite(joint_effort_command)) {
+      joint_effort_command = 0.0;
+    }
 
     joint_position_command = std::clamp(
       joint_position_command, joint.limit_position_min, joint.limit_position_max);
     joint_velocity_command = clamp_symmetric(joint_velocity_command, joint.limit_max_velocity);
+    joint_effort_command = clamp_symmetric(joint_effort_command, joint.limit_max_torque);
 
     joint.last_position_command = joint_position_command;
     joint.last_velocity_command = joint_velocity_command;
+    joint.last_effort_command = joint_effort_command;
 
     const double motor_position_command = joint_position_command / joint.gear_ratio;
     const double motor_velocity_command = joint_velocity_command / joint.gear_ratio;
+    const double motor_effort_command = joint_effort_command * joint.gear_ratio;
+    const auto motor_position_command_f = static_cast<float>(motor_position_command);
+    const auto motor_velocity_command_f = static_cast<float>(motor_velocity_command);
+    const auto motor_effort_command_f = static_cast<float>(motor_effort_command);
 
     if (joint.active_command_mode == JointData::CommandMode::POSITION) {
-      joint.md->m_mdRegisters.targetPosition = static_cast<float>(motor_position_command);
-      joint.md->m_mdRegisters.targetVelocity = static_cast<float>(motor_velocity_command);
+      const bool position_changed =
+        has_meaningful_change(joint.last_sent_motor_position_command, motor_position_command_f);
+      const bool velocity_changed =
+        has_meaningful_change(joint.last_sent_motor_velocity_command, motor_velocity_command_f);
 
-      if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetPosition) != mab::MD::Error_t::OK)
-      {
-        RCLCPP_ERROR(
-          get_logger(), "Write failed for drive %u (%s) target position", joint.can_id,
-          joint.name.c_str());
-        return hardware_interface::return_type::ERROR;
+      if (position_changed || velocity_changed) {
+        joint.md->m_mdRegisters.targetPosition = motor_position_command_f;
+        joint.md->m_mdRegisters.targetVelocity = motor_velocity_command_f;
+
+        bool write_ok = false;
+        for (int attempt = 1; attempt <= kJointWriteRetryAttempts; ++attempt) {
+          if (joint.md->writeRegisters(
+              joint.md->m_mdRegisters.targetPosition,
+              joint.md->m_mdRegisters.targetVelocity) == mab::MD::Error_t::OK)
+          {
+            write_ok = true;
+            joint.consecutive_write_failures = 0;
+            break;
+          }
+        }
+        if (!write_ok) {
+          ++joint.consecutive_write_failures;
+          RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 2000,
+            "Write failed for drive %u (%s) target position/velocity after %d retries "
+            "(%zu consecutive failures); holding last command.",
+            joint.can_id, joint.name.c_str(), kJointWriteRetryAttempts,
+            joint.consecutive_write_failures);
+        } else {
+          joint.last_sent_motor_position_command = motor_position_command_f;
+          joint.last_sent_motor_velocity_command = motor_velocity_command_f;
+        }
       }
+    } else if (joint.active_command_mode == JointData::CommandMode::VELOCITY) {
+      if (has_meaningful_change(joint.last_sent_motor_velocity_command, motor_velocity_command_f)) {
+        joint.md->m_mdRegisters.targetVelocity = motor_velocity_command_f;
 
-      if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetVelocity) != mab::MD::Error_t::OK)
-      {
-        RCLCPP_ERROR(
-          get_logger(), "Write failed for drive %u (%s) target velocity", joint.can_id,
-          joint.name.c_str());
-        return hardware_interface::return_type::ERROR;
+        bool write_ok = false;
+        for (int attempt = 1; attempt <= kJointWriteRetryAttempts; ++attempt) {
+          if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetVelocity) ==
+            mab::MD::Error_t::OK)
+          {
+            write_ok = true;
+            joint.consecutive_write_failures = 0;
+            break;
+          }
+        }
+        if (!write_ok) {
+          ++joint.consecutive_write_failures;
+          RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 2000,
+            "Write failed for drive %u (%s) target velocity after %d retries "
+            "(%zu consecutive failures); holding last command.",
+            joint.can_id, joint.name.c_str(), kJointWriteRetryAttempts,
+            joint.consecutive_write_failures);
+        } else {
+          joint.last_sent_motor_velocity_command = motor_velocity_command_f;
+        }
       }
     } else {
-      joint.md->m_mdRegisters.targetVelocity = static_cast<float>(motor_velocity_command);
-      if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetVelocity) != mab::MD::Error_t::OK)
-      {
-        RCLCPP_ERROR(
-          get_logger(), "Write failed for drive %u (%s) target velocity", joint.can_id,
-          joint.name.c_str());
-        return hardware_interface::return_type::ERROR;
+      // IMPEDANCE mode: write torque target (feedforward torque)
+      if (has_meaningful_change(joint.last_sent_motor_effort_command, motor_effort_command_f)) {
+        joint.md->m_mdRegisters.targetTorque = motor_effort_command_f;
+
+        bool write_ok = false;
+        for (int attempt = 1; attempt <= kJointWriteRetryAttempts; ++attempt) {
+          if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetTorque) ==
+            mab::MD::Error_t::OK)
+          {
+            write_ok = true;
+            joint.consecutive_write_failures = 0;
+            break;
+          }
+        }
+        if (!write_ok) {
+          ++joint.consecutive_write_failures;
+          RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 2000,
+            "Write failed for drive %u (%s) target torque after %d retries "
+            "(%zu consecutive failures); holding last command.",
+            joint.can_id, joint.name.c_str(), kJointWriteRetryAttempts,
+            joint.consecutive_write_failures);
+        } else {
+          joint.last_sent_motor_effort_command = motor_effort_command_f;
+        }
       }
     }
   }
@@ -402,7 +530,8 @@ hardware_interface::return_type MABSystemHardware::prepare_command_mode_switch(
 
       if (
         command_interface != hardware_interface::HW_IF_POSITION &&
-        command_interface != hardware_interface::HW_IF_VELOCITY)
+        command_interface != hardware_interface::HW_IF_VELOCITY &&
+        command_interface != hardware_interface::HW_IF_EFFORT)
       {
         return true;
       }
@@ -446,6 +575,7 @@ hardware_interface::return_type MABSystemHardware::perform_command_mode_switch(
   {
     bool position = false;
     bool velocity = false;
+    bool effort = false;
   };
 
   std::vector<ModeRequest> mode_requests(joints_.size());
@@ -468,7 +598,8 @@ hardware_interface::return_type MABSystemHardware::perform_command_mode_switch(
 
     if (
       command_interface != hardware_interface::HW_IF_POSITION &&
-      command_interface != hardware_interface::HW_IF_VELOCITY)
+      command_interface != hardware_interface::HW_IF_VELOCITY &&
+      command_interface != hardware_interface::HW_IF_EFFORT)
     {
       continue;
     }
@@ -481,21 +612,28 @@ hardware_interface::return_type MABSystemHardware::perform_command_mode_switch(
     auto & request = mode_requests[*joint_index];
     if (command_interface == hardware_interface::HW_IF_POSITION) {
       request.position = true;
-    } else {
+    } else if (command_interface == hardware_interface::HW_IF_VELOCITY) {
       request.velocity = true;
+    } else {
+      request.effort = true;
     }
   }
 
   for (size_t index = 0; index < joints_.size(); ++index) {
     const auto & request = mode_requests[index];
-    if (!request.position && !request.velocity) {
+    if (!request.position && !request.velocity && !request.effort) {
       continue;
     }
 
     auto & joint = joints_[index];
-    const auto requested_mode =
-      (request.velocity && !request.position) ? JointData::CommandMode::VELOCITY :
-      JointData::CommandMode::POSITION;
+    JointData::CommandMode requested_mode;
+    if (request.effort && !request.position && !request.velocity) {
+      requested_mode = JointData::CommandMode::IMPEDANCE;
+    } else if (request.velocity && !request.position && !request.effort) {
+      requested_mode = JointData::CommandMode::VELOCITY;
+    } else {
+      requested_mode = JointData::CommandMode::POSITION;
+    }
     if (joint.active_command_mode == requested_mode) {
       continue;
     }
@@ -506,6 +644,7 @@ hardware_interface::return_type MABSystemHardware::perform_command_mode_switch(
         get_logger(),
         "Skipping motion-mode switch for disconnected joint %s (requested: %s)",
         joint.name.c_str(),
+        requested_mode == JointData::CommandMode::IMPEDANCE ? "IMPEDANCE" :
         requested_mode == JointData::CommandMode::VELOCITY ? "VELOCITY_PID" : "POSITION_PID");
       continue;
     }
@@ -523,22 +662,17 @@ hardware_interface::return_type MABSystemHardware::perform_command_mode_switch(
       joint.md->m_mdRegisters.targetPosition = static_cast<float>(hold_position / joint.gear_ratio);
       joint.md->m_mdRegisters.targetVelocity = 0.0F;
 
-      if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetPosition) != mab::MD::Error_t::OK)
+      if (
+        joint.md->writeRegisters(
+          joint.md->m_mdRegisters.targetPosition,
+          joint.md->m_mdRegisters.targetVelocity) != mab::MD::Error_t::OK)
       {
         RCLCPP_ERROR(
-          get_logger(), "Failed to preload target position for %s (%u)",
+          get_logger(), "Failed to preload target position/velocity for %s (%u)",
           joint.name.c_str(), joint.can_id);
         return hardware_interface::return_type::ERROR;
       }
-
-      if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetVelocity) != mab::MD::Error_t::OK)
-      {
-        RCLCPP_ERROR(
-          get_logger(), "Failed to preload target velocity for %s (%u)",
-          joint.name.c_str(), joint.can_id);
-        return hardware_interface::return_type::ERROR;
-      }
-    } else {
+    } else if (requested_mode == JointData::CommandMode::VELOCITY) {
       if (joint.md->setMotionMode(mab::MdMode_E::VELOCITY_PID) != mab::MD::Error_t::OK) {
         RCLCPP_ERROR(
           get_logger(), "Failed to switch %s (%u) to VELOCITY_PID",
@@ -554,18 +688,63 @@ hardware_interface::return_type MABSystemHardware::perform_command_mode_switch(
           joint.name.c_str(), joint.can_id);
         return hardware_interface::return_type::ERROR;
       }
+    } else {
+      // IMPEDANCE mode: set kp=0, kd=0 initially (pure torque), then switch to IMPEDANCE
+      if (joint.md->setImpedanceParams(
+            static_cast<float>(joint.impedance_kp),
+            static_cast<float>(joint.impedance_kd)) != mab::MD::Error_t::OK)
+      {
+        RCLCPP_ERROR(
+          get_logger(), "Failed to set impedance params for %s (%u)",
+          joint.name.c_str(), joint.can_id);
+        return hardware_interface::return_type::ERROR;
+      }
+
+      if (joint.md->setMotionMode(mab::MdMode_E::IMPEDANCE) != mab::MD::Error_t::OK) {
+        RCLCPP_ERROR(
+          get_logger(), "Failed to switch %s (%u) to IMPEDANCE",
+          joint.name.c_str(), joint.can_id);
+        return hardware_interface::return_type::ERROR;
+      }
+
+      joint.md->m_mdRegisters.targetTorque = 0.0F;
+      if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetTorque) != mab::MD::Error_t::OK)
+      {
+        RCLCPP_ERROR(
+          get_logger(), "Failed to preload target torque for %s (%u)",
+          joint.name.c_str(), joint.can_id);
+        return hardware_interface::return_type::ERROR;
+      }
     }
 
     joint.active_command_mode = requested_mode;
     joint.last_position_command = std::clamp(
       joint.state_position, joint.limit_position_min, joint.limit_position_max);
     joint.last_velocity_command = 0.0;
+    joint.last_effort_command = 0.0;
+    if (requested_mode == JointData::CommandMode::POSITION) {
+      joint.last_sent_motor_position_command = joint.md->m_mdRegisters.targetPosition.value;
+      joint.last_sent_motor_velocity_command = joint.md->m_mdRegisters.targetVelocity.value;
+      joint.last_sent_motor_effort_command.reset();
+    } else if (requested_mode == JointData::CommandMode::VELOCITY) {
+      joint.last_sent_motor_position_command.reset();
+      joint.last_sent_motor_velocity_command = joint.md->m_mdRegisters.targetVelocity.value;
+      joint.last_sent_motor_effort_command.reset();
+    } else {
+      joint.last_sent_motor_position_command.reset();
+      joint.last_sent_motor_velocity_command.reset();
+      joint.last_sent_motor_effort_command = joint.md->m_mdRegisters.targetTorque.value;
+    }
     set_command(joint.name + "/" + hardware_interface::HW_IF_POSITION, joint.last_position_command);
     set_command(joint.name + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+    if (joint.has_effort_command) {
+      set_command(joint.name + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+    }
 
     RCLCPP_INFO(
       get_logger(), "Joint %s command mode switched to %s",
       joint.name.c_str(),
+      requested_mode == JointData::CommandMode::IMPEDANCE ? "IMPEDANCE" :
       requested_mode == JointData::CommandMode::VELOCITY ? "VELOCITY_PID" : "POSITION_PID");
   }
 
@@ -593,6 +772,9 @@ hardware_interface::CallbackReturn MABSystemHardware::parse_hardware_parameters(
   }
   if (const auto it = parameters.find("power_stage_socket"); it != parameters.end()) {
     power_stage_socket_ = std::stoi(it->second);
+  }
+  if (const auto it = parameters.find("fast_mode"); it != parameters.end()) {
+    fast_mode_ = parse_bool(it->second, false);
   }
   if (const auto it = parameters.find("telemetry_divider"); it != parameters.end()) {
     telemetry_divider_ = std::max(1, std::stoi(it->second));
@@ -732,14 +914,15 @@ hardware_interface::CallbackReturn MABSystemHardware::parse_joint_parameters()
       joint_info.command_interfaces, hardware_interface::HW_IF_POSITION);
     joint.has_velocity_command = has_interface(
       joint_info.command_interfaces, hardware_interface::HW_IF_VELOCITY);
+    joint.has_effort_command = has_interface(
+      joint_info.command_interfaces, hardware_interface::HW_IF_EFFORT);
     joint.has_position_state = has_interface(
       joint_info.state_interfaces, hardware_interface::HW_IF_POSITION);
     joint.has_velocity_state = has_interface(
       joint_info.state_interfaces, hardware_interface::HW_IF_VELOCITY);
     joint.has_effort_state = has_interface(
       joint_info.state_interfaces, hardware_interface::HW_IF_EFFORT);
-    joint.has_temperature_state = has_interface(
-      joint_info.state_interfaces, hardware_interface::HW_IF_TEMPERATURE);
+    joint.has_voltage_state = has_interface(joint_info.state_interfaces, "voltage");
 
     if (!joint.has_position_command || !joint.has_velocity_command) {
       throw std::runtime_error(
@@ -829,22 +1012,55 @@ bool MABSystemHardware::setup_pds()
     return true;
   }
 
-  pds_ = std::make_unique<mab::Pds>(static_cast<u16>(pds_id_), candle_.get());
-  if (pds_->init() != mab::PdsModule::error_E::OK) {
-    RCLCPP_ERROR(get_logger(), "Failed to initialize PDS %d", pds_id_);
-    return false;
-  }
-
   const auto socket = parse_socket_index(power_stage_socket_);
   if (!socket) {
     RCLCPP_ERROR(get_logger(), "Invalid power_stage_socket value: %d", power_stage_socket_);
     return false;
   }
 
-  power_stage_ = pds_->attachPowerStage(*socket);
-  if (!power_stage_) {
-    RCLCPP_ERROR(
-      get_logger(), "Failed to attach power stage on socket %d", power_stage_socket_);
+  bool module_probe_succeeded = false;
+  bool pds_liveness_confirmed = false;
+  u32 bus_voltage_mv = 0;
+
+  for (int attempt = 1; attempt <= kPdsInitAttempts; ++attempt) {
+    pds_ = std::make_unique<mab::Pds>(static_cast<u16>(pds_id_), candle_.get());
+
+    if (pds_->init() == mab::PdsModule::error_E::OK) {
+      module_probe_succeeded = true;
+      break;
+    }
+
+    if (pds_->getBusVoltage(bus_voltage_mv) == mab::PdsModule::error_E::OK) {
+      pds_liveness_confirmed = true;
+      RCLCPP_WARN(
+        get_logger(),
+        "PDS %d answered a bus-voltage request (%.2f V), but module discovery failed on attempt %d/%d.",
+        pds_id_, static_cast<double>(bus_voltage_mv) / 1000.0, attempt, kPdsInitAttempts);
+      break;
+    }
+
+    RCLCPP_WARN(
+      get_logger(), "Failed to initialize PDS %d on attempt %d/%d",
+      pds_id_, attempt, kPdsInitAttempts);
+    std::this_thread::sleep_for(kPdsRetryDelay);
+  }
+
+  if (module_probe_succeeded) {
+    power_stage_ = pds_->attachPowerStage(*socket);
+    if (!power_stage_) {
+      RCLCPP_ERROR(
+        get_logger(), "Failed to attach power stage on socket %d", power_stage_socket_);
+      return false;
+    }
+  } else if (pds_liveness_confirmed) {
+    auto pds_can_id = std::make_shared<u16>(static_cast<u16>(pds_id_));
+    power_stage_ = std::make_shared<mab::PowerStage>(*socket, candle_.get(), pds_can_id);
+    RCLCPP_WARN(
+      get_logger(),
+      "Proceeding with direct power-stage attachment on socket %d because PDS module discovery is unreliable.",
+      power_stage_socket_);
+  } else {
+    RCLCPP_ERROR(get_logger(), "Failed to initialize PDS %d", pds_id_);
     return false;
   }
 
@@ -889,14 +1105,13 @@ bool MABSystemHardware::activate_drive(JointData & joint)
 
   joint.md->m_mdRegisters.targetPosition = current_motor_position.first;
   joint.md->m_mdRegisters.targetVelocity = 0.0F;
-  if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetPosition) != mab::MD::Error_t::OK) {
+  if (
+    joint.md->writeRegisters(
+      joint.md->m_mdRegisters.targetPosition,
+      joint.md->m_mdRegisters.targetVelocity) != mab::MD::Error_t::OK)
+  {
     RCLCPP_WARN(
-      get_logger(), "Failed to preload target position for drive %u", joint.can_id);
-    return false;
-  }
-  if (joint.md->writeRegisters(joint.md->m_mdRegisters.targetVelocity) != mab::MD::Error_t::OK) {
-    RCLCPP_WARN(
-      get_logger(), "Failed to preload target velocity for drive %u", joint.can_id);
+      get_logger(), "Failed to preload target position/velocity for drive %u", joint.can_id);
     return false;
   }
 
@@ -918,6 +1133,10 @@ bool MABSystemHardware::activate_drive(JointData & joint)
   }
 
   joint.connected = true;
+  joint.consecutive_read_failures = 0;
+  joint.last_sent_motor_position_command = joint.md->m_mdRegisters.targetPosition.value;
+  joint.last_sent_motor_velocity_command = joint.md->m_mdRegisters.targetVelocity.value;
+  joint.last_sent_motor_effort_command.reset();
   joint.state_position = static_cast<double>(current_motor_position.first) * joint.gear_ratio;
   joint.state_velocity = 0.0;
   joint.last_position_command = joint.state_position;
@@ -1053,6 +1272,9 @@ void MABSystemHardware::disable_all_drives()
       joint.md->disable();
     }
     joint.connected = false;
+    joint.last_sent_motor_position_command.reset();
+    joint.last_sent_motor_velocity_command.reset();
+    joint.last_sent_motor_effort_command.reset();
   }
 }
 
@@ -1070,82 +1292,18 @@ hardware_interface::return_type MABSystemHardware::read_power_stage_telemetry()
   }
 
   u32 bus_voltage_mv = 0;
-  f32 pds_temperature_c = 0.0F;
-  f32 pds_temperature_limit_c = 0.0F;
-  u32 output_voltage_mv = 0;
-  s32 load_current_ma = 0;
-  f32 power_stage_temperature_c = 0.0F;
-  f32 power_stage_temperature_limit_c = 0.0F;
-  bool enabled = false;
 
-  auto soft_check = [&](auto getter, const char * what) {
-    if (getter() != mab::PdsModule::error_E::OK) {
-      RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "PDS telemetry read failed (%s); continuing without shutting down hardware", what);
-      return false;
-    }
-    return true;
-  };
-
-  if (!soft_check([&]() { return pds_->getBusVoltage(bus_voltage_mv); }, "bus_voltage")) {
-    return hardware_interface::return_type::OK;
-  }
-  if (!soft_check([&]() { return pds_->getTemperature(pds_temperature_c); }, "pds_temperature")) {
-    return hardware_interface::return_type::OK;
-  }
-  if (
-    !soft_check(
-      [&]() { return pds_->getTemperatureLimit(pds_temperature_limit_c); },
-      "pds_temperature_limit"))
-  {
-    return hardware_interface::return_type::OK;
-  }
-  if (!soft_check([&]() { return power_stage_->getOutputVoltage(output_voltage_mv); }, "output_voltage"))
-  {
-    return hardware_interface::return_type::OK;
-  }
-  if (!soft_check([&]() { return power_stage_->getLoadCurrent(load_current_ma); }, "load_current")) {
-    return hardware_interface::return_type::OK;
-  }
-  if (!soft_check([&]() { return power_stage_->getTemperature(power_stage_temperature_c); }, "ps_temperature"))
-  {
-    return hardware_interface::return_type::OK;
-  }
-  if (
-    !soft_check(
-      [&]() { return power_stage_->getTemperatureLimit(power_stage_temperature_limit_c); },
-      "ps_temperature_limit"))
-  {
-    return hardware_interface::return_type::OK;
-  }
-  if (!soft_check([&]() { return power_stage_->getEnabled(enabled); }, "enabled")) {
+  if (pds_->getBusVoltage(bus_voltage_mv) != mab::PdsModule::error_E::OK) {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 2000,
+      "PDS telemetry read failed (bus_voltage); continuing without shutting down hardware");
     return hardware_interface::return_type::OK;
   }
 
   power_stage_state_.bus_voltage = static_cast<double>(bus_voltage_mv);
-  power_stage_state_.pds_temperature = static_cast<double>(pds_temperature_c);
-  power_stage_state_.pds_temperature_limit = static_cast<double>(pds_temperature_limit_c);
-  power_stage_state_.output_voltage = static_cast<double>(output_voltage_mv);
-  power_stage_state_.load_current = static_cast<double>(load_current_ma);
-  power_stage_state_.power_stage_temperature = static_cast<double>(power_stage_temperature_c);
-  power_stage_state_.power_stage_temperature_limit =
-    static_cast<double>(power_stage_temperature_limit_c);
-  power_stage_state_.enabled = enabled ? 1.0 : 0.0;
 
   const std::string sensor_prefix = info_.sensors.front().name + "/";
   set_state(sensor_prefix + "bus_voltage", power_stage_state_.bus_voltage);
-  set_state(sensor_prefix + "pds_temperature", power_stage_state_.pds_temperature);
-  set_state(
-    sensor_prefix + "pds_temperature_limit", power_stage_state_.pds_temperature_limit);
-  set_state(sensor_prefix + "output_voltage", power_stage_state_.output_voltage);
-  set_state(sensor_prefix + "load_current", power_stage_state_.load_current);
-  set_state(
-    sensor_prefix + "power_stage_temperature", power_stage_state_.power_stage_temperature);
-  set_state(
-    sensor_prefix + "power_stage_temperature_limit",
-    power_stage_state_.power_stage_temperature_limit);
-  set_state(sensor_prefix + "enabled", power_stage_state_.enabled);
 
   return hardware_interface::return_type::OK;
 }
@@ -1159,8 +1317,12 @@ hardware_interface::return_type MABSystemHardware::seed_joint_commands_from_stat
 
     joint.last_position_command = joint.state_position;
     joint.last_velocity_command = 0.0;
+    joint.last_effort_command = 0.0;
     set_command(joint.name + "/" + hardware_interface::HW_IF_POSITION, joint.state_position);
     set_command(joint.name + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+    if (joint.has_effort_command) {
+      set_command(joint.name + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+    }
   }
 
   return hardware_interface::return_type::OK;

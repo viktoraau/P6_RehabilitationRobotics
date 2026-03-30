@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    # More forgiving rate to avoid overruns on USB/CAN.
+    # Bumped back to 100 Hz after reducing per-cycle SPI/CAN transactions in the hardware loop.
     update_rate: 100
 
     joint_state_broadcaster:
@@ -14,6 +14,9 @@ controller_manager:
 
     joint_group_velocity_controller:
       type: velocity_controllers/JointGroupVelocityController
+
+    joint_group_effort_controller:
+      type: effort_controllers/JointGroupEffortController
 
 joint_trajectory_controller:
   ros__parameters:
@@ -55,3 +58,11 @@ joint_group_velocity_controller:
       - joint_2
       - joint_3
     interface_name: velocity
+
+joint_group_effort_controller:
+  ros__parameters:
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+    interface_name: effort

@@ -1,11 +1,12 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mab_three_axis_rehab_robot">
-  <xacro:arg name="bus" default="USB"/>
-  <xacro:arg name="data_rate" default="8M"/>
+  <xacro:arg name="bus" default="SPI"/>
+  <xacro:arg name="data_rate" default="5M"/>
   <xacro:arg name="use_pds" default="true"/>
-  <xacro:arg name="use_regular_can_frames" default="true"/>
+  <xacro:arg name="use_regular_can_frames" default="false"/>
   <xacro:arg name="pds_id" default="100"/>
   <xacro:arg name="power_stage_socket" default="2"/>
+  <xacro:arg name="fast_mode" default="false"/>
   <xacro:arg name="md_id_1" default="37"/>
   <xacro:arg name="md_id_2" default="939"/>
   <xacro:arg name="md_id_3" default="941"/>
@@ -61,8 +62,8 @@
   <xacro:arg name="velocity_pid_ki_1" default="0.0005"/>
   <xacro:arg name="velocity_pid_kd_1" default="0.0"/>
   <xacro:arg name="velocity_pid_windup_1" default="0.25"/>
-  <xacro:arg name="impedance_kp_1" default="0.75"/>
-  <xacro:arg name="impedance_kd_1" default="0.02"/>
+  <xacro:arg name="impedance_kp_1" default="0.0"/>
+  <xacro:arg name="impedance_kd_1" default="0.0"/>
   <xacro:arg name="user_gpio_configuration_1" default="0"/>
   <xacro:arg name="reverse_direction_1" default="0"/>
   <xacro:arg name="shunt_resistance_1" default="0.004"/>
@@ -99,8 +100,8 @@
   <xacro:arg name="velocity_pid_ki_2" default="0.0005"/>
   <xacro:arg name="velocity_pid_kd_2" default="0.0"/>
   <xacro:arg name="velocity_pid_windup_2" default="0.25"/>
-  <xacro:arg name="impedance_kp_2" default="1.75"/>
-  <xacro:arg name="impedance_kd_2" default="0.02"/>
+  <xacro:arg name="impedance_kp_2" default="0.0"/>
+  <xacro:arg name="impedance_kd_2" default="0.0"/>
   <xacro:arg name="user_gpio_configuration_2" default="0"/>
   <xacro:arg name="reverse_direction_2" default="0"/>
   <xacro:arg name="shunt_resistance_2" default="0.004"/>
@@ -136,8 +137,8 @@
   <xacro:arg name="velocity_pid_ki_3" default="0.0005"/>
   <xacro:arg name="velocity_pid_kd_3" default="0.0"/>
   <xacro:arg name="velocity_pid_windup_3" default="0.25"/>
-  <xacro:arg name="impedance_kp_3" default="1.75"/>
-  <xacro:arg name="impedance_kd_3" default="0.02"/>
+  <xacro:arg name="impedance_kp_3" default="0.0"/>
+  <xacro:arg name="impedance_kd_3" default="0.0"/>
   <xacro:arg name="user_gpio_configuration_3" default="0"/>
   <xacro:arg name="reverse_direction_3" default="0"/>
   <xacro:arg name="shunt_resistance_3" default="0.004"/>
@@ -300,6 +301,7 @@
       <param name="use_regular_can_frames">$(arg use_regular_can_frames)</param>
       <param name="pds_id">$(arg pds_id)</param>
       <param name="power_stage_socket">$(arg power_stage_socket)</param>
+      <param name="fast_mode">$(arg fast_mode)</param>
       <param name="telemetry_divider">$(arg telemetry_divider)</param>
       <param name="auto_enable_power_stage">$(arg auto_enable_power_stage)</param>
       <param name="disable_power_stage_on_deactivate">$(arg disable_power_stage_on_deactivate)</param>
@@ -377,10 +379,11 @@
       <param name="shunt_resistance">$(arg shunt_resistance_1)</param>
       <command_interface name="position"/>
       <command_interface name="velocity"/>
+      <command_interface name="effort"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <state_interface name="temperature"/>
+      <state_interface name="voltage"/>
     </joint>
 
     <joint name="joint_2">
@@ -426,10 +429,11 @@
       <param name="shunt_resistance">$(arg shunt_resistance_2)</param>
       <command_interface name="position"/>
       <command_interface name="velocity"/>
+      <command_interface name="effort"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <state_interface name="temperature"/>
+      <state_interface name="voltage"/>
     </joint>
 
     <joint name="joint_3">
@@ -475,21 +479,15 @@
       <param name="shunt_resistance">$(arg shunt_resistance_3)</param>
       <command_interface name="position"/>
       <command_interface name="velocity"/>
+      <command_interface name="effort"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <state_interface name="temperature"/>
+      <state_interface name="voltage"/>
     </joint>
 
     <sensor name="mab_power_stage">
       <state_interface name="bus_voltage"/>
-      <state_interface name="pds_temperature"/>
-      <state_interface name="pds_temperature_limit"/>
-      <state_interface name="output_voltage"/>
-      <state_interface name="load_current"/>
-      <state_interface name="power_stage_temperature"/>
-      <state_interface name="power_stage_temperature_limit"/>
-      <state_interface name="enabled"/>
     </sensor>
   </ros2_control>
 </robot>
