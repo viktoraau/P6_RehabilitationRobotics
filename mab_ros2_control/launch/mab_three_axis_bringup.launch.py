@@ -286,8 +286,8 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            DeclareLaunchArgument("bus", default_value="SPI"),
-            DeclareLaunchArgument("data_rate", default_value="5M"),
+            DeclareLaunchArgument("bus", default_value="USB"),
+            DeclareLaunchArgument("data_rate", default_value="1M"),
             DeclareLaunchArgument("use_pds", default_value="true"),
             DeclareLaunchArgument("use_regular_can_frames", default_value="false"),
             DeclareLaunchArgument("pds_id", default_value="100"),
