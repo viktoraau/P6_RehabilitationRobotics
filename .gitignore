@@ -13,7 +13,6 @@
 
 # Local cloned dependencies (use setup script instead of committing)
 /candle_ros2/
-/src/candle_ros2/
 /CANdle-SDK/
 /candle_sdk/
 
