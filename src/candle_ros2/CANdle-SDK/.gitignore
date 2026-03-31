@@ -1,0 +1,46 @@
+.zed
+
+build
+install
+log
+bin
+dist
+venv
+wheelhouse
+*.cache*
+*compile_commands.json
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+# With exception for a driver
+!candlesdk-win-driver.exe 
+*.out
+*.app

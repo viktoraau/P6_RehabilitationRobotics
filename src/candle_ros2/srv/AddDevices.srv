@@ -1,0 +1,6 @@
+# Service adds MAB devices to the node
+
+uint16[] device_ids     # Device IDs
+---
+bool[] success          # Success status for each device
+uint16 total_devices    # Total number of devices

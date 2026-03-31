@@ -1,0 +1,444 @@
+# MAB Robotics CANDLE SDK GitHub Actions workflow file
+name: CANDLE_SDK_CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  pull_request:
+    types: [assigned, opened, synchronize, reopened]
+    branches:
+      - main
+      - devel
+
+jobs:
+  check-if-dev:
+    runs-on: ubuntu-latest
+    outputs:
+      is_dev: ${{ steps.set_output.outputs.is_dev }}
+      has_version_tag: ${{ steps.set_output.outputs.has_version_tag }}
+      version_tag_same_as_in_cmake_lists: ${{ steps.set_output.outputs.version_tag_same_as_in_cmake_lists }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from pyproject.toml and check for version tag
+        id: set_output
+        run: |
+          # Extract version from pyproject.toml
+          version=$(grep '^version\s*=' pyproject.toml | sed -E "s/version\s*=\s*['\"](.*)['\"]/\\1/")
+          echo "Version found in pyproject.toml: $version"
+
+          # Set is_dev if version contains 'dev'
+          if [[ "$version" == *"dev"* ]]; then
+            echo "Detected dev version"
+            echo "is_dev=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not a dev version"
+            echo "is_dev=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Check if version has 3 periods (e.g., 1.2.3.dev0 => has version tag)
+          dot_count=$(grep -o "\." <<< "$version" | wc -l)
+          if [[ "$dot_count" -eq 3 ]]; then
+            echo "Version has 3 periods"
+            echo "has_version_tag=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version has 2 or fewer periods"
+            echo "has_version_tag=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Extract version components from CMakeLists.txt
+          v1=$(grep 'set(CANDLESDK_VERSION_1' CMakeLists.txt | sed -E 's/.* ([0-9]+).*/\1/')
+          v2=$(grep 'set(CANDLESDK_VERSION_2' CMakeLists.txt | sed -E 's/.* ([0-9]+).*/\1/')
+          v3=$(grep 'set(CANDLESDK_VERSION_3' CMakeLists.txt | sed -E 's/.* ([0-9]+).*/\1/')
+          cmake_version="${v1}.${v2}.${v3}"
+          echo "Version found in CMakeLists.txt: $cmake_version"
+
+          # Compare versions
+          if [[ "$version" == "$cmake_version" ]]; then
+            echo "Version matches"
+            echo "version_tag_same_as_in_cmake_lists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version mismatch"
+            echo "version_tag_same_as_in_cmake_lists=false" >> "$GITHUB_OUTPUT"
+          fi
+  build-candleSDK-python-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Install CIBuildWheel
+        run: python3 -m pip install cibuildwheel==3.1.1
+
+      - name: Build wheels
+        run: python3 -m cibuildwheel --output-dir wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-linux
+          path: ./wheelhouse/*.whl
+
+  build-candleSDK-python-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install CIBuildWheel
+        run: python -m pip install cibuildwheel==3.1.1
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Set CMake generator
+        shell: powershell
+        run: |
+          "CMAKE_GENERATOR=MinGW Makefiles" >> $env:GITHUB_ENV
+
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-windows
+          path: ./wheelhouse/*.whl
+
+  build-candleSDK-linux-shared:
+    runs-on: ubuntu-24.04
+    container:
+      image: mabroboticsofficial/mab_build_environment:v3
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: CMake configure
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release -B build -G "Unix Makefiles" -DCANDLE_BUILD_STATIC=OFF .
+
+      - name: Build
+        run: cmake --build ./build -j$(nproc)
+      
+      - name: Rename artifact to arch dependant name
+        run: |
+          mv build/candlelib/libcandle.so build/candlelib/libcandle-x86_64.so
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: candlelib-x86_64-shared
+          path: |
+            build/candlelib/libcandle-x86_64.so
+
+  build-candleSDK-linux-static:
+    runs-on: ubuntu-24.04
+    container:
+      image: mabroboticsofficial/mab_build_environment:v3
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: CMake configure
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release -B build -G "Unix Makefiles" .
+
+      - name: Build
+        run: cmake --build ./build -j$(nproc)
+
+      - name: Create .deb package
+        run: make -C ./build package
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Candletool-build-artifacts-x86_64
+          path: |
+            build/*.deb
+
+  build-candleSDK-linux-arm64-shared:
+    runs-on: ubuntu-latest
+    container:
+      image: mabroboticsofficial/mab_build_environment_arm64_cross-compile:v3
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: CMake configure
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release -DCANDLE_BUILD_STATIC=OFF --toolchain ./cmake/linux.arm64.toolchain.cmake ./ -B build -G "Unix Makefiles" .
+
+      - name: Build
+        run: cmake --build ./build -j$(nproc)
+
+      - name: Rename artifact to arch dependant name
+        run: |
+          mv build/candlelib/libcandle.so build/candlelib/libcandle-arm64.so
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: candlelib-arm64-shared
+          path: |
+            build/candlelib/libcandle-arm64.so
+
+  build-candleSDK-linux-arm64-static:
+    runs-on: ubuntu-24.04
+    container:
+      image: mabroboticsofficial/mab_build_environment_arm64_cross-compile:v3
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: CMake configure
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release --toolchain ./cmake/linux.arm64.toolchain.cmake ./ -B build -G "Unix Makefiles" .
+
+      - name: Build
+        run: cmake --build ./build -j$(nproc)
+
+      - name: Create .deb package
+        run: make -C ./build package
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Candletool-build-artifacts-arm64
+          path: |
+            build/*.deb
+
+  build-candleSDK-linux-armhf-shared:
+    runs-on: ubuntu-latest
+    container:
+      image: mabroboticsofficial/mab_build_environment_armhf_cross-compile:v3
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: CMake configure
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release -DCANDLE_BUILD_STATIC=OFF --toolchain ./cmake/linux.armhf.toolchain.cmake ./ -B build -G "Unix Makefiles" .
+      
+      - name: Build
+        run: cmake --build ./build -j$(nproc)
+      
+      - name: Rename artifact to arch dependant name
+        run: |
+          mv build/candlelib/libcandle.so build/candlelib/libcandle-armhf.so
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: candlelib-armhf-shared
+          path: |
+            build/candlelib/libcandle-armhf.so
+
+  build-candleSDK-linux-armhf-static:
+    runs-on: ubuntu-24.04
+    container:
+      image: mabroboticsofficial/mab_build_environment_armhf_cross-compile:v3
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: CMake configure
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release --toolchain ./cmake/linux.armhf.toolchain.cmake ./ -B build -G "Unix Makefiles" .
+
+      - name: Build
+        run: cmake --build ./build -j$(nproc)
+
+      - name: Create .deb package
+        run: make -C ./build package
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Candletool-build-artifacts-armhf
+          path: |
+            build/*.deb
+
+  build-candleSDK-windows-static:
+    runs-on: ubuntu-24.04
+    container:
+      image: mabroboticsofficial/mab_build_environment_windows_cross-compile:v2
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Build
+        run: |
+          ./launch/buildForWindows.sh
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Candletool-build-artifacts-windows
+          path: |
+            build/*.exe
+
+  test-candleSDK-linux-static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container:
+      image: mabroboticsofficial/mab_build_environment:v2
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: CMake configure
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Release -DMAKE_TESTS=ON -B build -G "Unix Makefiles" .
+
+      - name: Build
+        run: cmake --build ./build --parallel "$(nproc)"
+
+      - name: Test
+        run: ./launch/run_all_tests.sh
+
+  release:
+    if: contains('
+      refs/heads/main
+      ', github.ref)
+    needs:
+      - build-candleSDK-linux-static
+      - build-candleSDK-linux-arm64-static
+      - build-candleSDK-linux-armhf-static
+      - build-candleSDK-windows-static
+      - check-if-dev
+      - build-candleSDK-python-linux
+      - build-candleSDK-python-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Fail if version has tag
+        if: needs.check-if-dev.outputs.has_version_tag == 'true'
+        run: |
+          echo "❌ Error: Version in pyproject.toml contains a tag or metadata. Pure main releases must be X.Y.Z only."
+          exit 1
+
+      - name: Fail if python is diffrent version than cmake
+        if: needs.check-if-dev.outputs.version_tag_same_as_in_cmake_lists == 'false'
+        run: |
+          echo "❌ Error: Python version is different than cmake version."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Extract version from CMakeLists.txt
+        id: extract_version
+        run: |
+          MAJOR=$(grep -Po 'set\(CANDLESDK_VERSION_1\s+\K[0-9]+' CMakeLists.txt)
+          MINOR=$(grep -Po 'set\(CANDLESDK_VERSION_2\s+\K[0-9]+' CMakeLists.txt)
+          PATCH=$(grep -Po 'set\(CANDLESDK_VERSION_3\s+\K[0-9]+' CMakeLists.txt)
+          VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "VERSION=$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Get merge commit message
+        id: get_commit_message
+        run: |
+          MESSAGE=$(git log -1 --pretty=%B)
+          echo "commit_message<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$MESSAGE" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.extract_version.outputs.version }}
+          name: Release v${{ steps.extract_version.outputs.version }}
+          body: ${{ steps.get_commit_message.outputs.commit_message }}
+          draft: true
+          prerelease: false
+          files: |
+            artifacts/**/*
+
+      - name: Download Linux wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cibw-wheels-linux
+          path: dist/
+
+      - name: Download Windows wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cibw-wheels-windows
+          path: dist/
+
+      - name: List wheels
+        run: ls -lh dist/
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install twine
+        run: python -m pip install --upgrade twine build
+
+      - name: Build source distribution (sdist)
+        run: |
+          python -m build --sdist --outdir dist/
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.RELEASE_PYPI_API_TOKEN }}
+        run: twine upload dist/*
