@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'admittance_controller = Admittance_controller.admittance_controller_node:main',
         ],
     },
 )
