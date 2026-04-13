@@ -12,23 +12,25 @@ class AdmittanceControllerNode(Node):
     def __init__(self) -> None:
         super().__init__('admittance_controller')
 
-        self.declare_parameter('input_topic', '/wrench_input')
-        self.declare_parameter('output_topic', '/admittance_controller/cartesian_state')
-        self.declare_parameter('base_frame', 'base_link')
-        self.declare_parameter('default_wrench_frame', 'tool0')
-        self.declare_parameter('control_rate_hz', 100.0)
-        self.declare_parameter('wrench_timeout_s', 0.1)
-        self.declare_parameter('max_dt_s', 0.05)
-        self.declare_parameter('min_dt_s', 1.0e-4)
-
-        self.declare_parameter('mass', [1.5, 1.5, 1.5])
-        self.declare_parameter('damping', [45.0, 45.0, 45.0])
-        self.declare_parameter('stiffness', [120.0, 120.0, 120.0])
-        self.declare_parameter('reference_position', [0.0, 0.0, 0.0])
-        self.declare_parameter('deadband_n', [0.35, 0.35, 0.35])
-        self.declare_parameter('force_lowpass_cutoff_hz', 20.0)
-        self.declare_parameter('max_velocity', [0.30, 0.30, 0.30])
-        self.declare_parameter('max_acceleration', [3.0, 3.0, 3.0])
+        for name, default in (
+            ('input_topic', '/wrench_input'),
+            ('output_topic', '/admittance_controller/cartesian_state'),
+            ('base_frame', 'base_link'),
+            ('default_wrench_frame', 'tool0'),
+            ('control_rate_hz', 100.0),
+            ('wrench_timeout_s', 0.1),
+            ('max_dt_s', 0.05),
+            ('min_dt_s', 1.0e-4),
+            ('mass', [1.5, 1.5, 1.5]),
+            ('damping', [45.0, 45.0, 45.0]),
+            ('stiffness', [120.0, 120.0, 120.0]),
+            ('reference_position', [0.0, 0.0, 0.0]),
+            ('deadband_n', [0.35, 0.35, 0.35]),
+            ('force_lowpass_cutoff_hz', 20.0),
+            ('max_velocity', [0.30, 0.30, 0.30]),
+            ('max_acceleration', [3.0, 3.0, 3.0]),
+        ):
+            self.declare_parameter(name, default)
 
         self.input_topic = str(self.get_parameter('input_topic').value)
         self.output_topic = str(self.get_parameter('output_topic').value)
@@ -82,15 +84,14 @@ class AdmittanceControllerNode(Node):
         raw = self.get_parameter(name).value
         if len(raw) != 3:
             raise ValueError(f'Parameter "{name}" must contain exactly 3 values')
-        vec = np.array(raw, dtype=np.float64)
-        return vec
+        return np.asarray(raw, dtype=np.float64)
 
     def _wrench_callback(self, msg: WrenchStamped) -> None:
-        self.latest_force_ee = np.array(
-            [msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z],
+        self.latest_force_ee = np.asarray(
+            (msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z),
             dtype=np.float64,
         )
-        self.latest_wrench_frame = msg.header.frame_id if msg.header.frame_id else self.default_wrench_frame
+        self.latest_wrench_frame = msg.header.frame_id or self.default_wrench_frame
         self.last_wrench_rx_time = self.get_clock().now()
 
     def _control_tick(self) -> None:
@@ -109,16 +110,17 @@ class AdmittanceControllerNode(Node):
         force_base = self._apply_deadband(force_base)
         self.filtered_force_base = self._lowpass_filter(self.filtered_force_base, force_base, dt)
 
-        self.acceleration = (
-            self.filtered_force_base
-            - self.damping * self.velocity
-            - self.stiffness * (self.position - self.reference_position)
-        ) / self.mass
-        self.acceleration = np.clip(self.acceleration, -self.max_acceleration, self.max_acceleration)
+        self.acceleration = np.clip(
+            (
+                self.filtered_force_base
+                - self.damping * self.velocity
+                - self.stiffness * (self.position - self.reference_position)
+            ) / self.mass,
+            -self.max_acceleration,
+            self.max_acceleration,
+        )
 
-        self.velocity = self.velocity + dt * self.acceleration
-        self.velocity = np.clip(self.velocity, -self.max_velocity, self.max_velocity)
-
+        self.velocity = np.clip(self.velocity + dt * self.acceleration, -self.max_velocity, self.max_velocity)
         self.position = self.position + dt * self.velocity
 
         msg = Float64MultiArray()
@@ -147,8 +149,7 @@ class AdmittanceControllerNode(Node):
                 rclpy.time.Time(),
             )
             rot = tf.transform.rotation
-            rotation = self._quat_to_matrix(rot.x, rot.y, rot.z, rot.w)
-            return rotation.dot(self.latest_force_ee)
+            return self._quat_to_matrix(rot.x, rot.y, rot.z, rot.w) @ self.latest_force_ee
         except TransformException as exc:
             self._warn_throttled('tf_lookup', f'TF lookup failed: {str(exc)}')
             return self._decay_force()
