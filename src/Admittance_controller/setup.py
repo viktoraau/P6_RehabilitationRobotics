@@ -25,6 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
             'admittance_controller = Admittance_controller.admittance_controller_node:main',
+            'orientation_admittance = Admittance_controller.orientation_admittance_node:main',
+            'traj_to_joint_state = Admittance_controller.traj_to_joint_state:main',
         ],
     },
 )

@@ -1,0 +1,4 @@
+<?xml version="1.0" ?>
+<robot name="complete_system_urdf" xmlns:xacro="http://www.ros.org/wiki/xacro" >
+
+</robot>
