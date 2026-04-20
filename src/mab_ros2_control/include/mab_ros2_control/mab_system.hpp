@@ -230,7 +230,6 @@ private:
   int pds_id_ = 100;
   int power_stage_socket_ = 2;
   bool fast_mode_ = false;
-  int telemetry_divider_ = 10;
   bool auto_enable_power_stage_ = true;
   bool disable_power_stage_on_deactivate_ = true;
   bool zero_on_activate_ = false;
@@ -242,7 +241,6 @@ private:
   std::string maintenance_restore_controller_ = "previous";
   int maintenance_service_timeout_ms_ = 3000;
 
-  size_t read_cycle_counter_ = 0;
   std::optional<std::chrono::steady_clock::time_point> command_hold_until_;
   bool command_hold_notice_emitted_ = false;
   std::atomic<bool> maintenance_active_{false};

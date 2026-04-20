@@ -96,7 +96,7 @@ Syntax:
 ```bash
 ros2 topic pub --once /joint_group_position_controller/commands \
   std_msgs/msg/Float64MultiArray \
-  "{data: [0.0, 0.0, -2.10]}"
+  "{data: [0.0, 1.0, 0.0]}"
 ```
 
 ### Velocity interface (`joint_group_velocity_controller`)
@@ -164,6 +164,9 @@ ros2 topic list | grep joint_trajectory_controller
 
 # Watch joint states
 ros2 topic echo /joint_states
+
+# Watch extra telemetry such as joint voltage and bus voltage (in volts)
+ros2 topic echo /dynamic_joint_states
 ```
 
 If a command does not move the robot, check that the matching command controller is `active` in:

@@ -22,12 +22,10 @@ def _controller_spawner_args(controller_name, active_controller_name):
 def _build_launch_nodes(context, controllers_file, installed_share):
     use_xacro = _as_bool(LaunchConfiguration("use_xacro").perform(context))
     fast_mode = LaunchConfiguration("fast_mode").perform(context)
-    telemetry_divider = LaunchConfiguration("telemetry_divider").perform(context)
     pds_id = LaunchConfiguration("pds_id").perform(context)
-    enable_brake_chopper = _as_bool(
-        LaunchConfiguration("enable_brake_chopper").perform(context)
-    )
-    power_stage_telemetry_divider = "1" if enable_brake_chopper else telemetry_divider
+    # enable_brake_chopper = _as_bool(
+    #     LaunchConfiguration("enable_brake_chopper").perform(context)
+    # )
     spawn_inactive_controllers = _as_bool(
         LaunchConfiguration("spawn_inactive_controllers").perform(context)
     )
@@ -89,9 +87,6 @@ def _build_launch_nodes(context, controllers_file, installed_share):
                     "power_stage_socket:=",
                     LaunchConfiguration("power_stage_socket"),
                     " ",
-                    "telemetry_divider:=",
-                    power_stage_telemetry_divider,
-                    " ",
                     "md_id_1:=",
                     LaunchConfiguration("md_id_1"),
                     " ",
@@ -118,7 +113,6 @@ def _build_launch_nodes(context, controllers_file, installed_share):
             "use_regular_can_frames": LaunchConfiguration("use_regular_can_frames").perform(context),
             "pds_id": pds_id,
             "power_stage_socket": LaunchConfiguration("power_stage_socket").perform(context),
-            "telemetry_divider": power_stage_telemetry_divider,
             "fast_mode": fast_mode,
         }
         joint_can_ids = {
@@ -163,6 +157,7 @@ def _build_launch_nodes(context, controllers_file, installed_share):
         parameters=[robot_description],
         output="screen",
     )
+    
 
     joint_state_broadcaster = Node(
         package="controller_manager",
@@ -209,6 +204,13 @@ def _build_launch_nodes(context, controllers_file, installed_share):
         output="screen",
     )
 
+    brake_relay_node = Node(
+        package="brake_relay_pkg",
+        executable="brake_relay_node",
+        name="brake_relay",
+        output="screen",
+    )
+
     controller_nodes = [
         joint_state_broadcaster,
     ]
@@ -234,45 +236,46 @@ def _build_launch_nodes(context, controllers_file, installed_share):
         robot_state_publisher,
         control_node,
         *controller_nodes,
+        brake_relay_node,
     ]
 
-    if enable_brake_chopper:
-        launch_nodes.append(
-            Node(
-                package="mab_brake_chopper",
-                executable="brake_chopper_node",
-                name="brake_chopper",
-                output="screen",
-                parameters=[
-                    {
-                        "pds_id": int(pds_id),
-                        "voltage_source": LaunchConfiguration("brake_voltage_source").perform(context),
-                        "trigger_voltage_v": float(
-                            LaunchConfiguration("brake_trigger_voltage_v").perform(context)
-                        ),
-                        "telemetry_timeout_sec": float(
-                            LaunchConfiguration("brake_telemetry_timeout_sec").perform(context)
-                        ),
-                        "gpio_pin": int(
-                            LaunchConfiguration("brake_gpio_pin").perform(context)
-                        ),
-                        "gpio_backend": LaunchConfiguration(
-                            "brake_gpio_backend"
-                        ).perform(context),
-                        "gpio_chip_label": LaunchConfiguration(
-                            "brake_gpio_chip_label"
-                        ).perform(context),
-                        "gpio_chip_path": LaunchConfiguration(
-                            "brake_gpio_chip_path"
-                        ).perform(context),
-                        "control_module_topic": f"pds/id_{pds_id}/control_module",
-                        "dynamic_joint_states_topic": "/dynamic_joint_states",
-                        "dynamic_joint_name": "mab_power_stage",
-                        "dynamic_interface_name": "bus_voltage",
-                    }
-                ],
-            )
-        )
+    # if enable_brake_chopper:
+    #     launch_nodes.append(
+    #         Node(
+    #             package="mab_brake_chopper",
+    #             executable="brake_chopper_node",
+    #             name="brake_chopper",
+    #             output="screen",
+    #             parameters=[
+    #                 {
+    #                     "pds_id": int(pds_id),
+    #                     "voltage_source": LaunchConfiguration("brake_voltage_source").perform(context),
+    #                     "trigger_voltage_v": float(
+    #                         LaunchConfiguration("brake_trigger_voltage_v").perform(context)
+    #                     ),
+    #                     "telemetry_timeout_sec": float(
+    #                         LaunchConfiguration("brake_telemetry_timeout_sec").perform(context)
+    #                     ),
+    #                     "gpio_pin": int(
+    #                         LaunchConfiguration("brake_gpio_pin").perform(context)
+    #                     ),
+    #                     "gpio_backend": LaunchConfiguration(
+    #                         "brake_gpio_backend"
+    #                     ).perform(context),
+    #                     "gpio_chip_label": LaunchConfiguration(
+    #                         "brake_gpio_chip_label"
+    #                     ).perform(context),
+    #                     "gpio_chip_path": LaunchConfiguration(
+    #                         "brake_gpio_chip_path"
+    #                     ).perform(context),
+    #                     "control_module_topic": f"pds/id_{pds_id}/control_module",
+    #                     "dynamic_joint_states_topic": "/dynamic_joint_states",
+    #                     "dynamic_joint_name": "mab_power_stage",
+    #                     "dynamic_interface_name": "bus_voltage",
+    #                 }
+    #             ],
+    #         )
+    #     )
 
     return launch_nodes
 
@@ -292,23 +295,16 @@ def generate_launch_description():
             DeclareLaunchArgument("use_regular_can_frames", default_value="false"),
             DeclareLaunchArgument("pds_id", default_value="100"),
             DeclareLaunchArgument("power_stage_socket", default_value="2"),
-            DeclareLaunchArgument("telemetry_divider", default_value="50"),
-            DeclareLaunchArgument("md_id_1", default_value="0"),
-            DeclareLaunchArgument("md_id_2", default_value="37"),
-            DeclareLaunchArgument("md_id_3", default_value="941"),
+            DeclareLaunchArgument("md_id_1", default_value="940"),
+            DeclareLaunchArgument("md_id_2", default_value="941"),
+            DeclareLaunchArgument("md_id_3", default_value="37"),
             DeclareLaunchArgument("fast_mode", default_value="false"),
             DeclareLaunchArgument("controller_update_rate_hz", default_value="100"),
             DeclareLaunchArgument("use_xacro", default_value="false"),
             DeclareLaunchArgument("active_controller", default_value="none"),
             DeclareLaunchArgument("spawn_inactive_controllers", default_value="true"),
-            DeclareLaunchArgument("enable_brake_chopper", default_value="true"),
             DeclareLaunchArgument("brake_voltage_source", default_value="dynamic_joint_state"),
-            DeclareLaunchArgument("brake_trigger_voltage_v", default_value="12.0"),
-            DeclareLaunchArgument("brake_telemetry_timeout_sec", default_value="0.50"),
-            DeclareLaunchArgument("brake_gpio_pin", default_value="17"),
-            DeclareLaunchArgument("brake_gpio_backend", default_value="linux_char"),
-            DeclareLaunchArgument("brake_gpio_chip_label", default_value="pinctrl-rp1"),
-            DeclareLaunchArgument("brake_gpio_chip_path", default_value=""),
+
             OpaqueFunction(
                 function=lambda context: _build_launch_nodes(
                     context, controllers_file, installed_share

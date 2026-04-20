@@ -301,12 +301,12 @@ hardware_interface::return_type MABSystemHardware::read(
       // Fall through to voltage read below (it's independent).
     } else {
       joint.state_position =
-        static_cast<double>(joint.md->m_mdRegisters.mainEncoderPosition.value);// * joint.gear_ratio;
+        static_cast<double>(joint.md->m_mdRegisters.mainEncoderPosition.value) * joint.gear_ratio;
       joint.state_velocity =
-        static_cast<double>(joint.md->m_mdRegisters.mainEncoderVelocity.value);// * joint.gear_ratio;
+        static_cast<double>(joint.md->m_mdRegisters.mainEncoderVelocity.value) * joint.gear_ratio;
       if (joint.has_effort_state && !fast_mode_) {
         joint.state_effort =
-          static_cast<double>(joint.md->m_mdRegisters.motorTorque.value);// / joint.gear_ratio;
+          static_cast<double>(joint.md->m_mdRegisters.motorTorque.value) / joint.gear_ratio;
       }
 
       if (joint.has_position_state) {
@@ -411,9 +411,9 @@ hardware_interface::return_type MABSystemHardware::write(
     joint.last_velocity_command = joint_velocity_command;
     joint.last_effort_command = joint_effort_command;
 
-    const double motor_position_command = joint_position_command; // / joint.gear_ratio;
-    const double motor_velocity_command = joint_velocity_command; // / joint.gear_ratio;
-    const double motor_effort_command = joint_effort_command; // * joint.gear_ratio;
+    const double motor_position_command = joint_position_command / joint.gear_ratio;
+    const double motor_velocity_command = joint_velocity_command / joint.gear_ratio;
+    const double motor_effort_command = joint_effort_command * joint.gear_ratio;
     const auto motor_position_command_f = static_cast<float>(motor_position_command);
     const auto motor_velocity_command_f = static_cast<float>(motor_velocity_command);
     const auto motor_effort_command_f = static_cast<float>(motor_effort_command);
@@ -653,7 +653,7 @@ hardware_interface::return_type MABSystemHardware::perform_command_mode_switch(
 
       const double hold_position = std::clamp(
         joint.state_position, joint.limit_position_min, joint.limit_position_max);
-      joint.md->m_mdRegisters.targetPosition = static_cast<float>(hold_position); // / joint.gear_ratio);
+      joint.md->m_mdRegisters.targetPosition = static_cast<float>(hold_position / joint.gear_ratio);
       joint.md->m_mdRegisters.targetVelocity = 0.0F;
 
       if (
@@ -1128,7 +1128,7 @@ bool MABSystemHardware::activate_drive(JointData & joint)
   joint.last_sent_motor_position_command = joint.md->m_mdRegisters.targetPosition.value;
   joint.last_sent_motor_velocity_command = joint.md->m_mdRegisters.targetVelocity.value;
   joint.last_sent_motor_effort_command.reset();
-  joint.state_position = static_cast<double>(current_motor_position.first); // * joint.gear_ratio;
+  joint.state_position = static_cast<double>(current_motor_position.first) * joint.gear_ratio;
   joint.state_velocity = 0.0;
   joint.last_position_command = joint.state_position;
   joint.last_velocity_command = 0.0;
@@ -1178,7 +1178,7 @@ bool MABSystemHardware::configure_drive(JointData & joint)
   }
 
   md.m_mdRegisters.motorPolePairs = static_cast<u32>(std::lround(joint.motor_pole_pairs));
-  //md.m_mdRegisters.motorGearRatio = static_cast<float>(joint.gear_ratio);
+  md.m_mdRegisters.motorGearRatio = static_cast<float>(joint.gear_ratio);
   md.m_mdRegisters.motorKt = static_cast<float>(joint.torque_constant);
   md.m_mdRegisters.motorIMax = static_cast<float>(joint.max_current);
   md.m_mdRegisters.motorTorqueBandwidth =
@@ -1189,7 +1189,7 @@ bool MABSystemHardware::configure_drive(JointData & joint)
   md.m_mdRegisters.motorCalibrationMode =
     static_cast<u8>(std::lround(joint.motor_calibration_mode));
   if (!write_register(md.m_mdRegisters.motorPolePairs)) { return false; }
-  //if (!write_register(md.m_mdRegisters.motorGearRatio)) { return false; }
+  if (!write_register(md.m_mdRegisters.motorGearRatio)) { return false; }
   if (!write_register(md.m_mdRegisters.motorKt)) { return false; }
   if (!write_register(md.m_mdRegisters.motorIMax)) { return false; }
   if (!write_register(md.m_mdRegisters.motorTorqueBandwidth)) { return false; }
