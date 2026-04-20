@@ -11,8 +11,11 @@ from tf2_ros import Buffer, TransformException, TransformListener
 class OrientationAdmittanceNode(Node):
     """Rotational admittance controller.
 
-    Input:  WrenchStamped (torque used, force ignored)
+    Input:  WrenchStamped (force and torque are both used)
     Output: desired orientation, angular velocity, angular acceleration in base frame
+
+    The wrench is transformed into the base frame, including the force-induced moment from the
+    transform translation between the wrench frame and the control frame.
 
     Dynamics are modeled on a small-angle orientation state theta about a reference orientation:
         I * theta_ddot + D * theta_dot + K * theta = tau
@@ -37,6 +40,7 @@ class OrientationAdmittanceNode(Node):
             ('stiffness', [0.250, 0.250, 0.250]),
             ('torque_deadband_nm', [0.01, 0.01, 0.01]),
             ('torque_lowpass_cutoff_hz', 20.0),
+            ('force_to_torque_gain_nm_per_n', [0.01, 0.01, 0.01]),
             ('max_angular_velocity', [1.0, 1.0, 1.0]),
             ('max_angular_acceleration', [8.0, 8.0, 8.0]),
             ('max_orientation_error_rad', [0.5, 1.2, 1.0]),
@@ -65,6 +69,7 @@ class OrientationAdmittanceNode(Node):
         self.max_angular_acceleration = self._read_vec_param('max_angular_acceleration', positive=True)
         self.max_orientation_error_rad = self._read_vec_param('max_orientation_error_rad', positive=True)
         self.torque_lowpass_cutoff_hz = float(self.get_parameter('torque_lowpass_cutoff_hz').value)
+        self.force_to_torque_gain_nm_per_n = self._read_vec_param('force_to_torque_gain_nm_per_n')
 
         q_xyzw = self.get_parameter('reference_orientation_xyzw').value
         if len(q_xyzw) != 4:
@@ -83,6 +88,7 @@ class OrientationAdmittanceNode(Node):
         self.alpha = np.zeros(3, dtype=np.float64)
         self.filtered_torque_base = np.zeros(3, dtype=np.float64)
 
+        self.latest_force_sensor = np.zeros(3, dtype=np.float64)
         self.latest_torque_sensor = np.zeros(3, dtype=np.float64)
         self.latest_wrench_frame = self.default_wrench_frame
         self.last_wrench_rx_time: Optional[rclpy.time.Time] = None
@@ -122,6 +128,10 @@ class OrientationAdmittanceNode(Node):
         return vec
 
     def _wrench_callback(self, msg: WrenchStamped) -> None:
+        self.latest_force_sensor = np.asarray(
+            (msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z),
+            dtype=np.float64,
+        )
         self.latest_torque_sensor = np.asarray(
             (msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z),
             dtype=np.float64,
@@ -210,7 +220,7 @@ class OrientationAdmittanceNode(Node):
             return self._decay_torque()
 
         if self.latest_wrench_frame == self.base_frame:
-            return self.latest_torque_sensor.copy()
+            return self.latest_torque_sensor.copy() + self.force_to_torque_gain_nm_per_n * self.latest_force_sensor
 
         try:
             tf = self.tf_buffer.lookup_transform(
@@ -219,9 +229,14 @@ class OrientationAdmittanceNode(Node):
                 rclpy.time.Time(),
             )
             rot = tf.transform.rotation
-            return self._quat_xyzw_to_matrix(
+            translation = tf.transform.translation
+            rotation_matrix = self._quat_xyzw_to_matrix(
                 np.array([rot.x, rot.y, rot.z, rot.w], dtype=np.float64)
-            ) @ self.latest_torque_sensor
+            )
+            force_base = rotation_matrix @ self.latest_force_sensor
+            torque_base = rotation_matrix @ self.latest_torque_sensor
+            offset_base = np.array((translation.x, translation.y, translation.z), dtype=np.float64)
+            return torque_base + np.cross(offset_base, force_base) + self.force_to_torque_gain_nm_per_n * force_base
         except TransformException as exc:
             self._warn_throttled('tf_lookup', f'TF lookup failed: {str(exc)}')
             return self._decay_torque()
