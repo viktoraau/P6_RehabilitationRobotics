@@ -119,7 +119,6 @@
       <param name="pds_id">100</param>
       <param name="power_stage_socket">2</param>
       <param name="fast_mode">false</param>
-      <param name="telemetry_divider">50</param>
       <param name="auto_enable_power_stage">true</param>
       <param name="disable_power_stage_on_deactivate">false</param>
       <param name="zero_on_activate">false</param>
@@ -135,8 +134,8 @@
       <param name="md_limit_max_velocity">20.0</param>
       <param name="md_limit_max_acceleration">60.0</param>
       <param name="md_limit_max_deceleration">60.0</param>
-      <param name="md_limit_position_min">-6.283</param>
-      <param name="md_limit_position_max">6.283</param>
+      <param name="md_limit_position_min">-100</param>
+      <param name="md_limit_position_max">100</param>
       <param name="md_profile_velocity">12.0</param>
       <param name="md_profile_acceleration">30.0</param>
       <param name="md_profile_deceleration">30.0</param>
@@ -168,8 +167,8 @@
       <param name="shutdown_temp">80.0</param>
       <param name="limit_max_torque">40.0</param>
       <param name="limit_max_velocity">20.0</param>
-      <param name="limit_position_min">-6.283</param>
-      <param name="limit_position_max">6.283</param>
+      <param name="limit_position_min">-100</param>
+      <param name="limit_position_max">100</param>
       <param name="limit_max_acceleration">60.0</param>
       <param name="limit_max_deceleration">60.0</param>
       <param name="profile_velocity">12.0</param>
@@ -188,8 +187,8 @@
       <param name="velocity_pid_ki">0.0005</param>
       <param name="velocity_pid_kd">0.0</param>
       <param name="velocity_pid_windup">0.25</param>
-      <param name="impedance_kp">0.0</param>
-      <param name="impedance_kd">0.0</param>
+      <param name="impedance_kp">0.5</param>
+      <param name="impedance_kd">0.3</param>
       <param name="user_gpio_configuration">0</param>
       <param name="reverse_direction">0</param>
       <param name="shunt_resistance">0.004</param>
@@ -199,10 +198,12 @@
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
+      <state_interface name="voltage"/>
+
     </joint>
     <joint name="joint_2">
       <!-- Joint 2 uses MD0939 with an MA-p-40_10_K170 motor and an external 10:1 reduction. -->
-      <param name="can_id">939</param>
+      <param name="can_id">940</param>
       <param name="motor_name">MA-p-40_10_K170</param>
       <param name="gear_ratio">0.1</param>
       <param name="pole_pairs">14</param>
@@ -216,8 +217,8 @@
       <param name="shutdown_temp">80.0</param>
       <param name="limit_max_torque">40.0</param>
       <param name="limit_max_velocity">20.0</param>
-      <param name="limit_position_min">-6.283</param>
-      <param name="limit_position_max">6.283</param>
+      <param name="limit_position_min">-100</param>
+      <param name="limit_position_max">100</param>
       <param name="limit_max_acceleration">60.0</param>
       <param name="limit_max_deceleration">60.0</param>
       <param name="profile_velocity">12.0</param>
@@ -247,6 +248,7 @@
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
+      <state_interface name="voltage"/>
     </joint>
     <joint name="joint_3">
       <!-- Joint 3 uses MD0941 with an MA-p-40_10_K170 motor and an external 10:1 reduction. -->
@@ -264,8 +266,8 @@
       <param name="shutdown_temp">80.0</param>
       <param name="limit_max_torque">40.0</param>
       <param name="limit_max_velocity">20.0</param>
-      <param name="limit_position_min">-6.283</param>
-      <param name="limit_position_max">6.283</param>
+      <param name="limit_position_min">-600</param>
+      <param name="limit_position_max">600</param>
       <param name="limit_max_acceleration">60.0</param>
       <param name="limit_max_deceleration">60.0</param>
       <param name="profile_velocity">12.0</param>
@@ -295,6 +297,7 @@
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
+      <state_interface name="voltage"/>
     </joint>
     <sensor name="mab_power_stage">
       <state_interface name="bus_voltage"/>

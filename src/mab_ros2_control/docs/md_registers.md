@@ -79,6 +79,7 @@
 | `hardwareErrors` | 0x80D | RO | u32 | |
 | `communicationErrors` | 0x80E | RO | u32 | |
 | `motionErrors` | 0x810 | RO | u32 | |
+| `dcBusVoltage` | 0x811 | RO | float | V |
 
 ## Quick usage notes
 - Max frame payload is 64 bytes; batch multiple `<reg,value>` pairs up to that limit.

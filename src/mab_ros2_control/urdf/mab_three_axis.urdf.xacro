@@ -8,9 +8,8 @@
   <xacro:arg name="power_stage_socket" default="2"/>
   <xacro:arg name="fast_mode" default="false"/>
   <xacro:arg name="md_id_1" default="37"/>
-  <xacro:arg name="md_id_2" default="939"/>
+  <xacro:arg name="md_id_2" default="940"/>
   <xacro:arg name="md_id_3" default="941"/>
-  <xacro:arg name="telemetry_divider" default="50"/>
   <xacro:arg name="auto_enable_power_stage" default="true"/>
   <xacro:arg name="disable_power_stage_on_deactivate" default="false"/>
   <xacro:arg name="zero_on_activate" default="false"/>
@@ -42,8 +41,8 @@
   <xacro:arg name="motor_calibration_mode_1" default="0"/>
   <xacro:arg name="limit_max_torque_1" default="40.0"/>
   <xacro:arg name="limit_max_velocity_1" default="20.0"/>
-  <xacro:arg name="limit_position_min_1" default="-6.283"/>
-  <xacro:arg name="limit_position_max_1" default="6.283"/>
+  <xacro:arg name="limit_position_min_1" default="-100"/>
+  <xacro:arg name="limit_position_max_1" default="100"/>
   <xacro:arg name="limit_max_acceleration_1" default="60.0"/>
   <xacro:arg name="limit_max_deceleration_1" default="60.0"/>
   <xacro:arg name="profile_velocity_1" default="12.0"/>
@@ -80,8 +79,8 @@
   <xacro:arg name="motor_calibration_mode_2" default="0"/>
   <xacro:arg name="limit_max_torque_2" default="40.0"/>
   <xacro:arg name="limit_max_velocity_2" default="20.0"/>
-  <xacro:arg name="limit_position_min_2" default="-6.283"/>
-  <xacro:arg name="limit_position_max_2" default="6.283"/>
+  <xacro:arg name="limit_position_min_2" default="-600.283"/>
+  <xacro:arg name="limit_position_max_2" default="600.283"/>
   <xacro:arg name="limit_max_acceleration_2" default="60.0"/>
   <xacro:arg name="limit_max_deceleration_2" default="60.0"/>
   <xacro:arg name="profile_velocity_2" default="12.0"/>
@@ -117,8 +116,8 @@
   <xacro:arg name="motor_calibration_mode_3" default="0"/>
   <xacro:arg name="limit_max_torque_3" default="40.0"/>
   <xacro:arg name="limit_max_velocity_3" default="20.0"/>
-  <xacro:arg name="limit_position_min_3" default="-6.283"/>
-  <xacro:arg name="limit_position_max_3" default="6.283"/>
+  <xacro:arg name="limit_position_min_3" default="-100"/>
+  <xacro:arg name="limit_position_max_3" default="100"/>
   <xacro:arg name="limit_max_acceleration_3" default="60.0"/>
   <xacro:arg name="limit_max_deceleration_3" default="60.0"/>
   <xacro:arg name="profile_velocity_3" default="12.0"/>
@@ -150,8 +149,8 @@
   <xacro:arg name="md_limit_max_velocity" default="20.0"/>
   <xacro:arg name="md_limit_max_acceleration" default="60.0"/>
   <xacro:arg name="md_limit_max_deceleration" default="60.0"/>
-  <xacro:arg name="md_limit_position_min" default="-6.283"/>
-  <xacro:arg name="md_limit_position_max" default="6.283"/>
+  <xacro:arg name="md_limit_position_min" default="-100"/>
+  <xacro:arg name="md_limit_position_max" default="100"/>
   <xacro:arg name="md_profile_velocity" default="12.0"/>
   <xacro:arg name="md_profile_acceleration" default="30.0"/>
   <xacro:arg name="md_profile_deceleration" default="30.0"/>
@@ -302,7 +301,6 @@
       <param name="pds_id">$(arg pds_id)</param>
       <param name="power_stage_socket">$(arg power_stage_socket)</param>
       <param name="fast_mode">$(arg fast_mode)</param>
-      <param name="telemetry_divider">$(arg telemetry_divider)</param>
       <param name="auto_enable_power_stage">$(arg auto_enable_power_stage)</param>
       <param name="disable_power_stage_on_deactivate">$(arg disable_power_stage_on_deactivate)</param>
       <param name="zero_on_activate">$(arg zero_on_activate)</param>
@@ -354,6 +352,8 @@
       <param name="limit_max_velocity">$(arg limit_max_velocity_1)</param>
       <param name="limit_position_min">$(arg limit_position_min_1)</param>
       <param name="limit_position_max">$(arg limit_position_max_1)</param>
+      <param name="md_limit_position_min">$(arg limit_position_min_1)</param>
+      <param name="md_limit_position_max">$(arg limit_position_max_1)</param>
       <param name="limit_max_acceleration">$(arg limit_max_acceleration_1)</param>
       <param name="limit_max_deceleration">$(arg limit_max_deceleration_1)</param>
       <param name="profile_velocity">$(arg profile_velocity_1)</param>
@@ -404,6 +404,8 @@
       <param name="limit_max_velocity">$(arg limit_max_velocity_2)</param>
       <param name="limit_position_min">$(arg limit_position_min_2)</param>
       <param name="limit_position_max">$(arg limit_position_max_2)</param>
+      <param name="md_limit_position_min">$(arg limit_position_min_2)</param>
+      <param name="md_limit_position_max">$(arg limit_position_max_2)</param>
       <param name="limit_max_acceleration">$(arg limit_max_acceleration_2)</param>
       <param name="limit_max_deceleration">$(arg limit_max_deceleration_2)</param>
       <param name="profile_velocity">$(arg profile_velocity_2)</param>
@@ -454,6 +456,8 @@
       <param name="limit_max_velocity">$(arg limit_max_velocity_3)</param>
       <param name="limit_position_min">$(arg limit_position_min_3)</param>
       <param name="limit_position_max">$(arg limit_position_max_3)</param>
+      <param name="md_limit_position_min">$(arg limit_position_min_3)</param>
+      <param name="md_limit_position_max">$(arg limit_position_max_3)</param>
       <param name="limit_max_acceleration">$(arg limit_max_acceleration_3)</param>
       <param name="limit_max_deceleration">$(arg limit_max_deceleration_3)</param>
       <param name="profile_velocity">$(arg profile_velocity_3)</param>
