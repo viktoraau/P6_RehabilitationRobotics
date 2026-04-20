@@ -1,0 +1,5 @@
+Fc1 = 3.402048998*tanh(10.*dtheta1)
+
+Fc2 = 1.734507909*tanh(10.*dtheta2)
+
+Fc3 = 1.588639685*tanh(10.*dtheta3)
