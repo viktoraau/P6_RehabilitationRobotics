@@ -1,0 +1,5 @@
+G1 = (0.1892038812*cos(theta2) + 0.9924258208 + (-0.5040181187*sin(theta3) + 0.6698286469*cos(theta3) + 2.672747958)*sin(theta2))*cos(theta1) + ((-0.5040181187*sin(theta3) + 0.6698286469*cos(theta3) + 2.672747958)*cos(theta2) - 0.1892038812*sin(theta2) + 0.4456068133)*sin(theta1)
+
+G2 = (0.1892038812*cos(theta2) + (-0.5040181187*sin(theta3) + 0.6698286469*cos(theta3) + 2.672747958)*sin(theta2))*cos(theta1) + (-0.5040181187*sin(theta3) + 0.6698286469*cos(theta3) + 2.672747958)*sin(theta1)*cos(theta2) - 0.1892038812*sin(theta1)*sin(theta2)
+
+G3 = 0.5040181187*(1.328977317*sin(theta3) + 1.000000000*cos(theta3))*(cos(theta1)*cos(theta2) - 1*sin(theta1)*sin(theta2))
