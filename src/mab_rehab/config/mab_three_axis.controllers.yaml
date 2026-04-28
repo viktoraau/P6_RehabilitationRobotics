@@ -1,0 +1,115 @@
+controller_manager:
+  ros__parameters:
+    # Bumped back to 100 Hz after reducing per-cycle SPI/CAN transactions in the hardware loop.
+    update_rate: 100
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    joint_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    joint_trajectory_velocity_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    joint_group_position_controller:
+      type: position_controllers/JointGroupPositionController
+
+    joint_group_velocity_controller:
+      type: velocity_controllers/JointGroupVelocityController
+
+    joint_group_effort_controller:
+      type: effort_controllers/JointGroupEffortController
+
+joint_trajectory_controller:
+  ros__parameters:
+    command_interfaces:
+      - position
+      - velocity
+    state_interfaces:
+      - position
+      - velocity
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+    constraints:
+      goal_time: 2.0
+      stopped_velocity_tolerance: 0.05
+      joint_1: {trajectory: 1.0 ,goal: 0.01 }
+      joint_2: {trajectory: 1.0 ,goal: 0.01 }
+      joint_3: {trajectory: 1.0 ,goal: 0.01 }
+
+    interface_names:
+      position: position
+      velocity: velocity
+    state_publish_rate: 25.0
+    action_monitor_rate: 100.0
+
+joint_trajectory_velocity_controller:
+  ros__parameters:
+    command_interfaces:
+      - velocity
+    state_interfaces:
+      - position
+      - velocity
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+    constraints:
+      goal_time: 2.0
+      stopped_velocity_tolerance: 0.05
+      joint_1: {trajectory: 1.0 ,goal: 0.01 }
+      joint_2: {trajectory: 1.0 ,goal: 0.01 }
+      joint_3: {trajectory: 1.0 ,goal: 0.01 }
+    gains:
+      # Outer-loop gains for velocity-only trajectory execution.
+      # The MD drive still closes the inner velocity loop.
+      joint_1:
+        p: 2.0
+        i: 0.0
+        d: 0.0
+        ff_velocity_scale: 1.0
+        u_clamp_max: 12.0
+        u_clamp_min: -12.0
+      joint_2:
+        p: 2.0
+        i: 0.0
+        d: 0.0
+        ff_velocity_scale: 1.0
+        u_clamp_max: 12.0
+        u_clamp_min: -12.0
+      joint_3:
+        p: 2.0
+        i: 0.0
+        d: 0.0
+        ff_velocity_scale: 1.0
+        u_clamp_max: 24.0
+        u_clamp_min: -24.0
+    state_publish_rate: 25.0
+    action_monitor_rate: 100.0
+
+joint_group_position_controller:
+  ros__parameters:
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+    interface_name: position
+
+joint_group_velocity_controller:
+  ros__parameters:
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+    interface_name: velocity
+
+joint_group_effort_controller:
+  ros__parameters:
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+    interface_name: effort

@@ -1,0 +1,24 @@
+safety_limits:
+  enabled: false
+  joints:
+    joint_1:
+      position_min: -1.2
+      position_max: 1.2
+      max_velocity: 200.0
+      max_acceleration: 500.0
+      max_deceleration: 500.0
+      max_torque: 200.0
+    joint_2:
+      position_min: -0.55
+      position_max: 0.55
+      max_velocity: 200.0
+      max_acceleration: 500.0
+      max_deceleration: 500.0
+      max_torque: 200.0
+    joint_3:
+      position_min: -1.05
+      position_max: 1.05
+      max_velocity: 200.0
+      max_acceleration: 500.0
+      max_deceleration: 500.0
+      max_torque: 200.0

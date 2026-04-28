@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<library path="mab_rehab_hardware">
+  <class
+    name="mab_rehab/MABSystemHardware"
+    type="mab_rehab::MABSystemHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Real-time ros2_control SystemInterface for the 3-axis rehab robot.
+      Decomposed into transport, drive, power, maintenance and RT-primitive modules.
+    </description>
+  </class>
+</library>

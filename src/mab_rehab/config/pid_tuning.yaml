@@ -1,0 +1,61 @@
+# PID / impedance gains per joint. Uploaded to the drive at on_activate(),
+# overriding whatever the motor .cfg file provided. Gains are 1:1 with the
+# MD registers setPositionPIDparam / setVelocityPIDparam / setImpedanceParams.
+#
+# Values below match the legacy mab_ros2_control defaults so behaviour is
+# identical on the first bringup. Tune per joint as needed.
+
+pid_tuning:
+  joints:
+    joint_1:
+      position_pid:
+        kp: 70.0
+        ki: 8.0
+        kd: 0.0
+        windup: 4.0
+      velocity_pid:
+        kp: 15.5
+        ki: 6.0
+        kd: 0.0
+        windup: 7.5
+      impedance:
+        kp: 0.0
+        kd: 0.0
+      friction:
+        motor_friction: 2.6   # dynamic (viscous) friction [Nm·s/rad]
+        motor_stiction: 3.5   # static (breakaway) friction [Nm]
+    joint_2:
+      position_pid:
+        kp: 40.0
+        ki: 10.0
+        kd: 0.0
+        windup: 3.5
+      velocity_pid:
+        kp: 20.5
+        ki: 5.6
+        kd: 0.0
+        windup: 2.0
+      impedance:
+        kp: 0.0
+        kd: 0.0
+      friction:
+        motor_friction: 1.5
+        motor_stiction: 1.5
+    joint_3:
+      position_pid:
+        kp: 35.0
+        ki: 8.0
+        kd: 0.0
+        windup: 6.0
+      velocity_pid:
+        kp: 15.5
+        ki: 4.0
+        kd: 0.0
+        windup: 4.5
+      impedance:
+        kp: 0.0
+        kd: 0.0
+      friction:
+        motor_friction: 0.5
+        motor_stiction: 0.5
+

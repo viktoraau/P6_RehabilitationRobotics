@@ -137,41 +137,51 @@ void MdNode::cbPositionCmd(const candle_ros2::msg::PositionPidCmd& msg)
             continue;
         }
 
-        mab::MDRegisters_S mdRegisters;
-        mdRegisters.motorVelPidKp     = msg.position_pid[i].kp;
-        mdRegisters.motorVelPidKi     = msg.position_pid[i].ki;
-        mdRegisters.motorVelPidKd     = msg.position_pid[i].kd;
-        mdRegisters.motorVelPidWindup = msg.position_pid[i].i_windup;
-        mdRegisters.profileVelocity   = msg.position_pid[i].max_output;
-        if (md->writeRegisters(mdRegisters.motorVelPidKp,
-                               mdRegisters.motorVelPidKi,
-                               mdRegisters.motorVelPidKd,
-                               mdRegisters.motorVelPidWindup,
-                               mdRegisters.profileVelocity) != mab::MD::Error_t::OK)
+        bool write_ok = true;
+
+        if (md->setPositionPIDparam(msg.position_pid[i].kp,
+                                    msg.position_pid[i].ki,
+                                    msg.position_pid[i].kd,
+                                    msg.position_pid[i].i_windup) != mab::MD::Error_t::OK)
         {
             RCLCPP_WARN(this->get_logger(),
                         "Failed to set Position PID parameters for drive with ID: %d",
                         msg.device_ids[i]);
+            write_ok = false;
+        }
+
+        if (md->setProfileVelocity(msg.position_pid[i].max_output) != mab::MD::Error_t::OK)
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Failed to set profile velocity for drive with ID: %d",
+                        msg.device_ids[i]);
+            write_ok = false;
         }
 
         if (i < (size_t)msg.velocity_pid.size())
         {
-            mdRegisters.motorVelPidKp     = msg.velocity_pid[i].kp;
-            mdRegisters.motorVelPidKi     = msg.velocity_pid[i].ki;
-            mdRegisters.motorVelPidKd     = msg.velocity_pid[i].kd;
-            mdRegisters.motorVelPidWindup = msg.velocity_pid[i].i_windup;
-            mdRegisters.maxTorque         = msg.velocity_pid[i].max_output;
-            if (md->writeRegisters(mdRegisters.motorVelPidKp,
-                                   mdRegisters.motorVelPidKi,
-                                   mdRegisters.motorVelPidKd,
-                                   mdRegisters.motorVelPidWindup,
-                                   mdRegisters.maxTorque) != mab::MD::Error_t::OK)
+            if (md->setVelocityPIDparam(msg.velocity_pid[i].kp,
+                                        msg.velocity_pid[i].ki,
+                                        msg.velocity_pid[i].kd,
+                                        msg.velocity_pid[i].i_windup) != mab::MD::Error_t::OK)
             {
                 RCLCPP_WARN(this->get_logger(),
                             "Failed to set Velocity PID parameters for drive with ID: %d",
                             msg.device_ids[i]);
+                write_ok = false;
+            }
+
+            if (md->setMaxTorque(msg.velocity_pid[i].max_output) != mab::MD::Error_t::OK)
+            {
+                RCLCPP_WARN(this->get_logger(),
+                            "Failed to set max torque for drive with ID: %d",
+                            msg.device_ids[i]);
+                write_ok = false;
             }
         }
+
+        if (!write_ok)
+            continue;
     }
     return;
 }
@@ -197,20 +207,21 @@ void MdNode::cbVelocityCmd(const candle_ros2::msg::VelocityPidCmd& msg)
             continue;
         }
 
-        mab::MDRegisters_S mdRegisters;
-        mdRegisters.motorVelPidKp     = msg.velocity_pid[i].kp;
-        mdRegisters.motorVelPidKi     = msg.velocity_pid[i].ki;
-        mdRegisters.motorVelPidKd     = msg.velocity_pid[i].kd;
-        mdRegisters.motorVelPidWindup = msg.velocity_pid[i].i_windup;
-        mdRegisters.maxTorque         = msg.velocity_pid[i].max_output;
-        if (md->writeRegisters(mdRegisters.motorVelPidKp,
-                               mdRegisters.motorVelPidKi,
-                               mdRegisters.motorVelPidKd,
-                               mdRegisters.motorVelPidWindup,
-                               mdRegisters.maxTorque) != mab::MD::Error_t::OK)
+        if (md->setVelocityPIDparam(msg.velocity_pid[i].kp,
+                                    msg.velocity_pid[i].ki,
+                                    msg.velocity_pid[i].kd,
+                                    msg.velocity_pid[i].i_windup) != mab::MD::Error_t::OK)
         {
             RCLCPP_WARN(this->get_logger(),
                         "Failed to set Velocity PID parameters for drive with ID: %d",
+                        msg.device_ids[i]);
+            continue;
+        }
+
+        if (md->setMaxTorque(msg.velocity_pid[i].max_output) != mab::MD::Error_t::OK)
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Failed to set max torque for drive with ID: %d",
                         msg.device_ids[i]);
         }
     }
@@ -238,16 +249,18 @@ void MdNode::cbImpedanceCmd(const candle_ros2::msg::ImpedanceCmd& msg)
             continue;
         }
 
-        mab::MDRegisters_S mdRegisters;
-        mdRegisters.motorImpPidKp = msg.kp[i];
-        mdRegisters.motorImpPidKd = msg.kd[i];
-        mdRegisters.maxTorque     = msg.max_output[i];
-        if (md->writeRegisters(mdRegisters.motorImpPidKp,
-                               mdRegisters.motorImpPidKd,
-                               mdRegisters.maxTorque) != mab::MD::Error_t::OK)
+        if (md->setImpedanceParams(msg.kp[i], msg.kd[i]) != mab::MD::Error_t::OK)
         {
             RCLCPP_WARN(this->get_logger(),
                         "Failed to set Impedance parameters for drive with ID: %d",
+                        msg.device_ids[i]);
+            continue;
+        }
+
+        if (md->setMaxTorque(msg.max_output[i]) != mab::MD::Error_t::OK)
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Failed to set max torque for drive with ID: %d",
                         msg.device_ids[i]);
         }
     }

@@ -1,3 +1,4 @@
+import json
 import rclpy
 from rclpy.node import Node
 from control_msgs.msg import DynamicJointState
@@ -17,8 +18,8 @@ class MotorCal(Node):
         self.stop = False
         self.joints = np.full((3,4), -1)
         self.commands = [2,0,1]
-        self.torques = [0.9, 0.5, 0.02]
-        self.speed_val = [1.5,5,3]
+        self.torques = [1.0, 1.0, 1.0]
+        self.speed_val = [5,5,5]
         self.stopped = False
 
         self.subscription = self.create_subscription(
@@ -45,23 +46,26 @@ class MotorCal(Node):
 
     def listener_callback(self, msg):
             try:
-                if self.joints[0,0] < 0 and self.joints[1,0] < 0 and self.joints[2,0] < 0:
-                    self.get_indeces(msg)
-                
-                #self.get_indeces(msg)
-                
-                #self.get_logger().info(f"Joints: {self.joints}")
-                vol_val = msg.interface_values[self.motor_nr].values[self.joints[self.motor_nr,3]]
-                if np.isnan(vol_val):
-                    self.get_logger().info(f"Motor number {self.motor_nr} is not found")
-                    self.motor_nr = self.motor_nr - 1
-                    return
-
-                self.get_logger().info(f"Motor number: {self.motor_nr}, Extremities: {self.ext}")
-
                 if self.motor_nr < 0:
                     self.motor_stop()
                     return
+
+                if self.joints[0,0] < 0 and self.joints[1,0] < 0 and self.joints[2,0] < 0:
+                    self.get_indeces(msg)
+
+                volt_idx = self.joints[self.motor_nr, 3]
+                if volt_idx < 0:
+                    self.get_logger().info(f"Motor {self.motor_nr} has no voltage interface, skipping")
+                    self.motor_nr -= 1
+                    return
+
+                vol_val = msg.interface_values[self.motor_nr].values[volt_idx]
+                if np.isnan(vol_val):
+                    self.get_logger().info(f"Motor number {self.motor_nr} is not found")
+                    self.motor_nr -= 1
+                    return
+
+                self.get_logger().info(f"Motor number: {self.motor_nr}, Extremities: {self.ext}")
 
                 pos_val = msg.interface_values[self.motor_nr].values[self.joints[self.motor_nr,0]]
                 vel_val = msg.interface_values[self.motor_nr].values[self.joints[self.motor_nr,1]]
@@ -98,6 +102,10 @@ class MotorCal(Node):
         else:
             idx = 0
         
+        
+        if self.motor_nr == 0 and self.speed_val[i] < 0:
+            self.torques[i] = 0.95
+        
         self.get_logger().info(f"Torque limit: {self.torques[i]}")
 
         if abs(eff) > self.torques[i] and t.time() > self.current + 2 and self.previous_vel - abs(vel) > 0 and abs(vel) < 1.5:
@@ -131,6 +139,7 @@ class MotorCal(Node):
             self.publisher_1.publish(speed)
             t.sleep(1)
             self.motor_nr = self.motor_nr - 1
+            return
 
         k = 4.0
         vel_cmd = k * error
@@ -151,10 +160,23 @@ class MotorCal(Node):
             speed = Float64MultiArray()
             speed.data = np.zeros(3)
             self.publisher_1.publish(speed)
-        Extremities = Float64MultiArray()
-        Extremities.data = self.ext.flatten()
-        self.publisher_2.publish(Extremities)
-        self.stopped = True
+            
+        # Extremities = Float64MultiArray()
+        # Extremities.data = self.ext.flatten()
+        # self.publisher_2.publish(Extremities)
+            # Convert numpy array to list
+            ext_list = self.ext.tolist()
+
+            # Write to JSON file
+            data = {
+                "extremities": ext_list
+            }
+
+            with open("extremities.json", "w") as f:
+                json.dump(data, f, indent=4)
+
+            self.get_logger().info("Extremities saved to extremities.json")
+            self.stopped = True
 
     def get_indeces(self, msg):
         for i, joint_name in enumerate(msg.joint_names):

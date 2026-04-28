@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'motor_cal = calibration_pkg.motor_cal:main',
+            'gear_calibration = calibration_pkg.gear_calibration:main',
         ],
     },
 )

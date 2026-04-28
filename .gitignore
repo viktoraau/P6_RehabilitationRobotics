@@ -12,14 +12,15 @@
 *.py[cod]
 
 # Local cloned dependencies (use setup script instead of committing)
-/candle_ros2/
-/CANdle-SDK/
-/candle_sdk/
+
+
+
 
 # Common local editor/system noise
 *.swp
 *~
 .DS_Store
 Thumbs.db
+
 
 src/brake_relay_pkg/Brake_relay/venv

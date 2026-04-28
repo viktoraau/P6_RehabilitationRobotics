@@ -1,0 +1,13 @@
+startup_reference:
+  enabled: true
+  reference_mode: min_stop
+  command_guard_ms: 1500
+  joints:
+    joint_1:
+      reference_position: 1.1344640137963142
+    joint_2:
+      reference_position: -0.5235987755982988
+    joint_3:
+      reference_position: -1.0471975511965976
+
+
