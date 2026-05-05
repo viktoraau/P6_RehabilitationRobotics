@@ -1,19 +1,19 @@
-C11 = (0.0008962522537*sin(2*theta3) - 0.0006703737514*cos(2*theta3))*dtheta3
+C11 = (-0.08733741013*sin(2*theta3) - 0.0291645406*cos(2*theta3))*dtheta3
 
-C12 = (0.0008962522537*sin(2*theta3) - 0.0006703737514*cos(2*theta3))*dtheta3
+C12 = (-0.08733741013*sin(2*theta3) - 0.0291645406*cos(2*theta3))*dtheta3
 
-C13 = (-0.003652995632*cos(theta2)^2 - 0.1367884775*cos(theta2)*sin(theta2) + 0.001826497816)*dtheta3*cos(theta1)^2 + (0.003652995632*cos(theta2)*sin(theta2) - 0.1367884775*cos(theta2)^2 + 0.06839423876)*dtheta3*sin(theta1)*cos(theta1) + 0.001826497816*cos(theta2)^2*dtheta3 + 0.06839423877*dtheta3*sin(theta2)*cos(theta2) + (-0.001340747503*dtheta1 - 0.001340747503*dtheta2)*cos(theta3)^2 + ((0.001792504506*dtheta1 + 0.001792504506*dtheta2)*sin(theta3) + 0.001209433405*dtheta3)*cos(theta3) - 0.003636162552*sin(theta3)*dtheta3 - 0.0009132489079*dtheta3 + 0.0006703737514*dtheta2 + 0.0006703737514*dtheta1
-
-
-C21 = (0.0008962522537*sin(2*theta3) - 0.0006703737514*cos(2*theta3))*dtheta3
-
-C22 = (0.0008962522537*sin(2*theta3) - 0.0006703737514*cos(2*theta3))*dtheta3
-
-C23 = (-0.003652995632*cos(theta2)^2 - 0.1367884775*cos(theta2)*sin(theta2) + 0.001826497816)*dtheta3*cos(theta1)^2 + (0.003652995632*cos(theta2)*sin(theta2) - 0.1367884775*cos(theta2)^2 + 0.06839423876)*dtheta3*sin(theta1)*cos(theta1) + 0.001826497816*cos(theta2)^2*dtheta3 + 0.06839423877*dtheta3*sin(theta2)*cos(theta2) + (-0.001340747503*dtheta1 - 0.001340747503*dtheta2)*cos(theta3)^2 + ((0.001792504506*dtheta1 + 0.001792504506*dtheta2)*sin(theta3) + 0.001209433405*dtheta3)*cos(theta3) - 0.003636162552*sin(theta3)*dtheta3 - 0.0009132489079*dtheta3 + 0.0006703737514*dtheta2 + 0.0006703737514*dtheta1
+C13 = (-0.05832908122*dtheta1 - 0.05832908122*dtheta2)*cos(theta3)^2 + ((-0.1746748204*dtheta1 - 0.1746748204*dtheta2)*sin(theta3) - 0.1852683441*dtheta3)*cos(theta3) + 0.04000000000*cos(theta2)*sin(theta2)*dtheta3*cos(theta1)^2 + (-0.02000000000 + 0.04000000000*cos(theta2)^2)*dtheta3*sin(theta1)*cos(theta1) - 0.02000000000*dtheta3*sin(theta2)*cos(theta2) + 0.03011592105*sin(theta3)*dtheta3 + 0.02916454061*dtheta2 + 0.02916454061*dtheta1
 
 
-C31 = (0.003652995632*cos(theta2)^2 + 0.1367884775*cos(theta2)*sin(theta2) - 0.001826497816)*dtheta3*cos(theta1)^2 + (0.1367884775*cos(theta2)^2 - 0.003652995632*cos(theta2)*sin(theta2) - 0.06839423877)*dtheta3*sin(theta1)*cos(theta1) - 0.001826497816*cos(theta2)^2*dtheta3 - 0.06839423877*dtheta3*sin(theta2)*cos(theta2) + (0.001340747503*dtheta1 + 0.001340747503*dtheta2)*cos(theta3)^2 + (-0.001792504507*dtheta2 - 0.001792504507*dtheta1)*sin(theta3)*cos(theta3) + 0.0009132489079*dtheta3 - 0.0006703737514*dtheta2 - 0.0006703737514*dtheta1
+C21 = (-0.08733741013*sin(2*theta3) - 0.0291645406*cos(2*theta3))*dtheta3
 
-C32 = (0.003652995632*cos(theta2)^2 + 0.1367884775*cos(theta2)*sin(theta2) - 0.001826497816)*dtheta3*cos(theta1)^2 + (0.1367884775*cos(theta2)^2 - 0.003652995632*cos(theta2)*sin(theta2) - 0.06839423877)*dtheta3*sin(theta1)*cos(theta1) - 0.001826497816*cos(theta2)^2*dtheta3 - 0.06839423877*dtheta3*sin(theta2)*cos(theta2) + (0.001340747503*dtheta1 + 0.001340747503*dtheta2)*cos(theta3)^2 + (-0.001792504507*dtheta2 - 0.001792504507*dtheta1)*sin(theta3)*cos(theta3) + 0.0009132489079*dtheta3 - 0.0006703737514*dtheta2 - 0.0006703737514*dtheta1
+C22 = (-0.08733741013*sin(2*theta3) - 0.0291645406*cos(2*theta3))*dtheta3
 
-C33 = 0.0009132489080*((-1.000000000*sin(2*theta1) + 37.44556285*cos(2*theta1))*sin(2*theta2) + (1.000000000*cos(2*theta1) + 37.44556285*sin(2*theta1))*cos(2*theta2))*(dtheta2 + dtheta1)
+C23 = (-0.05832908122*dtheta1 - 0.05832908122*dtheta2)*cos(theta3)^2 + ((-0.1746748204*dtheta1 - 0.1746748204*dtheta2)*sin(theta3) - 0.1852683441*dtheta3)*cos(theta3) + 0.04000000000*cos(theta2)*sin(theta2)*dtheta3*cos(theta1)^2 + (-0.02000000000 + 0.04000000000*cos(theta2)^2)*dtheta3*sin(theta1)*cos(theta1) - 0.02000000000*dtheta3*sin(theta2)*cos(theta2) + 0.03011592105*sin(theta3)*dtheta3 + 0.02916454061*dtheta2 + 0.02916454061*dtheta1
+
+
+C31 = (0.02916454061*dtheta2 + 0.02916454061*dtheta1)*cos(2*theta3) + (0.08733741015*dtheta2 + 0.08733741015*dtheta1)*sin(2*theta3) - 0.01000000000*sin(2*theta1)*dtheta3*cos(2*theta2) - 0.01000000000*cos(2*theta1)*dtheta3*sin(2*theta2)
+
+C32 = (0.02916454060*dtheta2 + 0.02916454060*dtheta1)*cos(2*theta3) + (0.08733741015*dtheta2 + 0.08733741015*dtheta1)*sin(2*theta3) - 0.01000000000*sin(2*theta1)*dtheta3*cos(2*theta2) - 0.01000000000*cos(2*theta1)*dtheta3*sin(2*theta2)
+
+C33 = -(0.01*cos(2.*theta1)*sin(2.*theta2) + 0.01*cos(2.*theta2)*sin(2.*theta1))*(dtheta2 + dtheta1)
