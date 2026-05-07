@@ -24,6 +24,7 @@ setup(
         "console_scripts": [
             "ft300_wrench_node = ft300_ros2.ft300_wrench_node:main",
             "ft300_calibration_node = ft300_ros2.ft300_calibration_node:main",
+            "ft300_trajectory_calibration_node = ft300_ros2.ft300_trajectory_calibration_node:main",
         ],
     },
 )

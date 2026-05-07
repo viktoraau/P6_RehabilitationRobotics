@@ -127,7 +127,7 @@ class ComputedTorqueController(Node):
         self.declare_parameter('joint_state_topic', '/joint_states')
         self.declare_parameter(
             'desired_trajectory_topic',
-            '/joint_trajectory_controller/joint_trajectory'
+            'joint_trajectory_controller/JointTrajectoryController'
         )
         self.declare_parameter(
             'torque_command_topic',
@@ -138,13 +138,15 @@ class ComputedTorqueController(Node):
             ['joint_1', 'joint_2', 'joint_3'],
         )
         self.declare_parameter('control_rate_hz', 100.0)
-        self.declare_parameter('kp', [40.0, 40.0, 40.0])
-        self.declare_parameter('kd', [12.0, 12.0, 12.0])
+        self.declare_parameter('kp', [12.0, 12.0, 12.0])
+        self.declare_parameter('kd', [6.0, 6.0, 6.0])
         self.declare_parameter('use_motor_inertia', True)
         self.declare_parameter(
             'dynamic_model_directory',
             str(_DEFAULT_DYNAMIC_MODEL_DIR),
         )
+
+        self.gearing = np.array([4.2535 , 8.1687, 5.1775])  # Adjust if the robot has gearing
 
         self.joint_state_topic = (
             self.get_parameter('joint_state_topic')
@@ -342,7 +344,8 @@ class ComputedTorqueController(Node):
         self.last_tau = tau
 
         command = Float64MultiArray()
-        command.data = tau.tolist()
+        # scale the commanded torque by the gearing
+        command.data = (tau * self.gearing).tolist()
         self.torque_command_publisher.publish(command)
 
     # --- Helpers ---

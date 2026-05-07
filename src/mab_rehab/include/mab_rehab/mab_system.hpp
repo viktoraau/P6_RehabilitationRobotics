@@ -80,9 +80,6 @@ private:
 
   // --- RT state ---
   size_t read_cycle_counter_{0};
-  // Pre-allocated per-drive futures for the two-pass parallel write path.
-  // Sized to drives_.size() in on_activate; never reallocated in the hot path.
-  std::vector<std::future<mab::MD::Error_t>> write_futures_;
 
   // --- Helpers ---
   MdDrive * find_drive(const std::string & joint_name);

@@ -98,18 +98,18 @@
   <!-- Joint range limits (URDF schema requires these on revolute joints).
        Kept as xacro args so they can be overridden by the launch file if
        the safety envelope is narrower than the mechanical envelope. -->
-  <xacro:arg name="joint_1_lower" default="-999.9"/>
-  <xacro:arg name="joint_1_upper" default="999.9"/>
-  <xacro:arg name="joint_1_effort" default="40.0"/>
-  <xacro:arg name="joint_1_velocity" default="200.0"/>
-  <xacro:arg name="joint_2_lower" default="-999.9"/>
-  <xacro:arg name="joint_2_upper" default="999.9"/>
-  <xacro:arg name="joint_2_effort" default="40.0"/>
-  <xacro:arg name="joint_2_velocity" default="200.0"/>
-  <xacro:arg name="joint_3_lower" default="-999.9"/>
-  <xacro:arg name="joint_3_upper" default="999.9"/>
-  <xacro:arg name="joint_3_effort" default="40.0"/>
-  <xacro:arg name="joint_3_velocity" default="200.0"/>
+  <xacro:arg name="joint_1_lower" default="-1.22173"/>
+  <xacro:arg name="joint_1_upper" default="1.22173"/>
+  <xacro:arg name="joint_1_effort" default="100"/>
+  <xacro:arg name="joint_1_velocity" default="100"/>
+  <xacro:arg name="joint_2_lower" default="-1.047198"/>
+  <xacro:arg name="joint_2_upper" default="1.047198"/>
+  <xacro:arg name="joint_2_effort" default="100"/>
+  <xacro:arg name="joint_2_velocity" default="100"/>
+  <xacro:arg name="joint_3_lower" default="-0.523599"/>
+  <xacro:arg name="joint_3_upper" default="0.523599"/>
+  <xacro:arg name="joint_3_effort" default="100"/>
+  <xacro:arg name="joint_3_velocity" default="100"/>
 
   <!-- ========================================================================
        Visuals / materials
@@ -119,99 +119,116 @@
   <material name="silver"><color rgba="0.700 0.700 0.700 1.000"/></material>
 
   <link name="base_link">
-    <visual>
-      <geometry><box size="0.18 0.12 0.04"/></geometry>
-      <material name="carbon"/>
-    </visual>
-    <collision><geometry><box size="0.18 0.12 0.04"/></geometry></collision>
     <inertial>
-      <mass value="1.0"/>
-      <origin xyz="0 0 0"/>
-      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+      <origin xyz="-0.0004893152259659719 -0.2513490561575862 -0.11283715805734928" rpy="0 0 0"/>
+      <mass value="1.6888096724896144"/>
+      <inertia ixx="0.011059" iyy="0.008847" izz="0.009341" ixy="-5e-06" iyz="0.001084" ixz="-9e-06"/>
     </inertial>
-  </link>
-
-  <link name="link_1">
     <visual>
-      <geometry><cylinder radius="0.025" length="0.18"/></geometry>
-      <origin xyz="0 0 0.09" rpy="0 0 0"/>
-      <material name="signal"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find complete_system_urdf_description)/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
     </visual>
     <collision>
-      <geometry><cylinder radius="0.025" length="0.18"/></geometry>
-      <origin xyz="0 0 0.09" rpy="0 0 0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find complete_system_urdf_description)/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
     </collision>
-    <inertial>
-      <mass value="0.4"/>
-      <origin xyz="0 0 0.09"/>
-      <inertia ixx="0.002" ixy="0.0" ixz="0.0" iyy="0.002" iyz="0.0" izz="0.001"/>
-    </inertial>
   </link>
 
-  <link name="link_2">
+  <link name="SP_1">
+    <inertial>
+      <origin xyz="-0.00287850355471334 -0.170096729052721 0.0637259393764876" rpy="0 0 0"/>
+      <mass value="2.79251837723032"/>
+      <inertia ixx="0.007639595" iyy="0.003108243" izz="0.006948556" ixy="-0.000028142" iyz="-0.002786960" ixz="-0.000015599"/>
+    </inertial>
     <visual>
-      <geometry><cylinder radius="0.022" length="0.16"/></geometry>
-      <origin xyz="0 0 0.08" rpy="0 0 0"/>
-      <material name="signal"/>
+      <origin xyz="-0.0003 0.235996 -0.006391" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find complete_system_urdf_description)/meshes/SP_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
     </visual>
     <collision>
-      <geometry><cylinder radius="0.022" length="0.16"/></geometry>
-      <origin xyz="0 0 0.08" rpy="0 0 0"/>
+      <origin xyz="-0.0003 0.235996 -0.006391" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find complete_system_urdf_description)/meshes/SP_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
     </collision>
-    <inertial>
-      <mass value="0.3"/>
-      <origin xyz="0 0 0.08"/>
-      <inertia ixx="0.0016" ixy="0.0" ixz="0.0" iyy="0.0016" iyz="0.0" izz="0.0008"/>
-    </inertial>
   </link>
 
-  <link name="link_3">
+  <link name="FE_1">
+    <inertial>
+      <origin xyz="0.0100230420189453 -0.147527232046006 -0.0596848006055911" rpy="0 0 0"/>
+      <mass value="1.73974792190052"/>
+      <inertia ixx="0.001249118" iyy="0.002103592" izz="0.002529205" ixy="-0.000716662" iyz="0.000405509" ixz="0.000552885"/>
+    </inertial>
     <visual>
-      <geometry><cylinder radius="0.02" length="0.14"/></geometry>
-      <origin xyz="0 0 0.07" rpy="0 0 0"/>
-      <material name="signal"/>
+      <origin xyz="0.000339 0.001 0.190609" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find complete_system_urdf_description)/meshes/FE_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
     </visual>
     <collision>
-      <geometry><cylinder radius="0.02" length="0.14"/></geometry>
-      <origin xyz="0 0 0.07" rpy="0 0 0"/>
+      <origin xyz="0.000339 0.001 0.190609" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find complete_system_urdf_description)/meshes/FE_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
     </collision>
+  </link>
+
+  <link name="RU_1">
     <inertial>
-      <mass value="0.25"/>
-      <origin xyz="0 0 0.07"/>
-      <inertia ixx="0.0012" ixy="0.0" ixz="0.0" iyy="0.0012" iyz="0.0" izz="0.0006"/>
+      <origin xyz="-0.0482140606157735 0.0785410329381029 -0.0549873784536445" rpy="0 0 0"/>
+      <mass value="3.76497890932792"/>
+      <inertia ixx="0.000698815" iyy="0.000957467" izz="0.001081425" ixy="-0.000000517" iyz="-0.000146456" ixz="0.000000757"/>
     </inertial>
+    <visual>
+      <origin xyz="-0.085661 0.001 -0.006391" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find complete_system_urdf_description)/meshes/RU_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.085661 0.001 -0.006391" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find complete_system_urdf_description)/meshes/RU_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
   </link>
 
   <joint name="joint_1" type="revolute">
+    <origin xyz="0.0003 -0.235996 0.006391" rpy="0 0 0"/>
     <parent link="base_link"/>
-    <child link="link_1"/>
-    <origin xyz="0 0 0.02" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <limit lower="$(arg joint_1_lower)" upper="$(arg joint_1_upper)"
-           effort="$(arg joint_1_effort)" velocity="$(arg joint_1_velocity)"/>
+    <child link="SP_1"/>
+    <axis xyz="0.0 -1.0 0.0"/>
+    <limit upper="1.22173" lower="-1.22173" effort="100" velocity="100"/>
   </joint>
 
   <joint name="joint_2" type="revolute">
-    <parent link="link_1"/>
-    <child link="link_2"/>
-    <origin xyz="0 0 0.18" rpy="0 0 0"/>
-    <axis xyz="-1 0 0"/>
-    <limit lower="$(arg joint_2_lower)" upper="$(arg joint_2_upper)"
-           effort="$(arg joint_2_effort)" velocity="$(arg joint_2_velocity)"/>
+    <origin xyz="-0.000639 0.234996 -0.197" rpy="0 0 0"/>
+    <parent link="SP_1"/>
+    <child link="FE_1"/>
+    <axis xyz="0.0 0.0 -1.0"/>
+    <limit upper="1.047198" lower="-1.047198" effort="100" velocity="100"/>
   </joint>
 
   <joint name="joint_3" type="revolute">
-    <parent link="link_2"/>
-    <child link="link_3"/>
-    <origin xyz="0 0 0.16" rpy="0 0 0"/>
-    <axis xyz="0 0 1"/>
-    <limit lower="$(arg joint_3_lower)" upper="$(arg joint_3_upper)"
-           effort="$(arg joint_3_effort)" velocity="$(arg joint_3_velocity)"/>
+    <origin xyz="0.086 0.0 0.197" rpy="0 0 0"/>
+    <parent link="FE_1"/>
+    <child link="RU_1"/>
+    <axis xyz="1.0 0.0 0.0"/>
+    <limit upper="0.523599" lower="-0.523599" effort="100" velocity="100"/>
   </joint>
 
   <link name="tool0"/>
   <joint name="tool0_fixed" type="fixed">
-    <parent link="link_3"/>
+    <parent link="RU_1"/>
     <child link="tool0"/>
     <origin xyz="0 0 0.14" rpy="0 0 0"/>
   </joint>
@@ -340,9 +357,5 @@
       <state_interface name="voltage"/>
       <state_interface name="gear_ratio"/>
     </joint>
-
-    <sensor name="mab_power_stage">
-      <state_interface name="bus_voltage"/>
-    </sensor>
   </ros2_control>
 </robot>

@@ -23,13 +23,13 @@ public:
   OrientationIK3RNode()
   : Node("orientation_ik_3r_node")
   {
-    input_mode_ = declare_parameter<std::string>("input_mode", "tf");  // "tf" or "direct"
+    input_mode_ = declare_parameter<std::string>("input_mode", "direct");  // "tf" or "direct"
 
     base_frame_ = declare_parameter<std::string>("base_frame", "base_link");
-    tip_frame_ = declare_parameter<std::string>("tip_frame", "Body2__3__1");
+    tip_frame_ = declare_parameter<std::string>("tip_frame", "RU_1");
 
     publish_topic_ = declare_parameter<std::string>(
-      "publish_topic", "/joint_trajectory_controller/joint_trajectory");
+      "publish_topic", "/joint_trajectory_controller/joint_trajectory"); //joint_trajectory_controller/JointTrajectoryController
 
     orientation_topic_ = declare_parameter<std::string>(
       "orientation_topic", "/desired_orientation");
@@ -38,7 +38,7 @@ public:
     angular_acceleration_topic_ = declare_parameter<std::string>(
       "angular_acceleration_topic", "/desired_angular_acceleration");
 
-    damping_lambda_ = declare_parameter<double>("damping_lambda", 1e-4);
+    damping_lambda_ = declare_parameter<double>("damping_lambda", 0);
     singularity_det_threshold_ = declare_parameter<double>("singularity_det_threshold", 1e-6);
     max_direct_input_age_s_ = declare_parameter<double>("max_direct_input_age_s", 0.1);
 
@@ -148,28 +148,28 @@ private:
     return q.normalized().toRotationMatrix();
   }
 
-  // Robot model:
-  // joint_1 about +Y
-  // joint_2 about -X
-  // joint_3 about +Z
+  // Robot model (matches URDF: complete_system_urdf.xacro):
+  //   joint_1 axis = -Y  (base_link -> SP_1)
+  //   joint_2 axis = -Z  (SP_1      -> FE_1)
+  //   joint_3 axis = +X  (FE_1      -> RU_1)
   //
-  // R = Ry(q1) * Rx(-q2) * Rz(q3)
+  //   R_base_tip(q) = Ry(-q1) * Rz(-q2) * Rx(q3)
   static Eigen::Matrix3d forwardOrientation(const Eigen::Vector3d & q)
   {
-    return rotY(q[0]) * rotX(-q[1]) * rotZ(q[2]);
+    return rotY(-q[0]) * rotZ(-q[1]) * rotX(q[2]);
   }
 
-  // Closed-form IK for:
-  // R(1,2) = sin(q2)
-  // R(0,2) = sin(q1) cos(q2)
-  // R(2,2) = cos(q1) cos(q2)
-  // R(1,0) = sin(q3) cos(q2)
-  // R(1,1) = cos(q3) cos(q2)
+  // Closed-form IK for R = Ry(-q1) * Rz(-q2) * Rx(q3):
+  //   R(1,0) = -sin(q2)
+  //   R(0,0) =  cos(q1) cos(q2)
+  //   R(2,0) =  sin(q1) cos(q2)
+  //   R(1,1) =  cos(q2) cos(q3)
+  //   R(1,2) = -cos(q2) sin(q3)
   static Eigen::Vector3d solveOrientationIK(const Eigen::Matrix3d & R)
   {
-    const double q2 = std::asin(clamp(R(1, 2), -1.0, 1.0));
-    const double q1 = std::atan2(R(0, 2), R(2, 2));
-    const double q3 = std::atan2(R(1, 0), R(1, 1));
+    const double q2 = -std::asin(clamp(R(1, 0), -1.0, 1.0));
+    const double q1 =  std::atan2( R(2, 0), R(0, 0));
+    const double q3 =  std::atan2(-R(1, 2), R(1, 1));
     return Eigen::Vector3d(q1, q2, q3);
   }
 
@@ -204,58 +204,51 @@ private:
 
   bool withinJointLimits(const Eigen::Vector3d & q) const
   {
-    // Replace if your URDF limits are different
+    // URDF limits: joint_1 ±1.22173, joint_2 ±1.047198, joint_3 ±0.523599
     return (q[0] >= -1.221731 && q[0] <=  1.221731) &&
-           (q[1] >= -0.523599 && q[1] <=  0.523599) &&
-           (q[2] >= -1.047198 && q[2] <=  1.047198);
+           (q[1] >= -1.047198 && q[1] <=  1.047198) &&
+           (q[2] >= -0.523599 && q[2] <=  0.523599);
   }
 
-  // Angular velocity Jacobian in base frame:
-  // omega = Jw(q) * qdot
-  //
-  // Columns are the 3 joint axes expressed in base coordinates.
+  // Angular velocity Jacobian in base frame:  omega = Jw(q) * qdot
+  // Columns = joint axes expressed in base frame.
+  //   col_0 = -Y                               = [0, -1, 0]
+  //   col_1 = Ry(-q1) * (0, 0, -1)             = [s1, 0, -c1]
+  //   col_2 = Ry(-q1) * Rz(-q2) * (1, 0, 0)   = [c1*c2, -s2, s1*c2]
   static Eigen::Matrix3d angularJacobian(const Eigen::Vector3d & q)
   {
-    const double q1 = q[0];
-    const double q2 = q[1];
-
-    const double s1 = std::sin(q1);
-    const double c1 = std::cos(q1);
-    const double s2 = std::sin(q2);
-    const double c2 = std::cos(q2);
+    const double s1 = std::sin(q[0]);
+    const double c1 = std::cos(q[0]);
+    const double s2 = std::sin(q[1]);
+    const double c2 = std::cos(q[1]);
 
     Eigen::Matrix3d J;
-    J.col(0) << 0.0, 1.0, 0.0;
-    J.col(1) << -c1, 0.0, s1;
-    J.col(2) << s1 * c2, s2, c1 * c2;
+    J.col(0) <<  0.0,       -1.0,  0.0;
+    J.col(1) <<  s1,         0.0, -c1;
+    J.col(2) <<  c1 * c2,  -s2,   s1 * c2;
     return J;
   }
 
   static Eigen::Matrix3d angularJacobianDot(const Eigen::Vector3d & q,
                                             const Eigen::Vector3d & qdot)
   {
-    const double q1 = q[0];
-    const double q2 = q[1];
+    const double s1 = std::sin(q[0]);
+    const double c1 = std::cos(q[0]);
+    const double s2 = std::sin(q[1]);
+    const double c2 = std::cos(q[1]);
     const double q1d = qdot[0];
     const double q2d = qdot[1];
 
-    const double s1 = std::sin(q1);
-    const double c1 = std::cos(q1);
-    const double s2 = std::sin(q2);
-    const double c2 = std::cos(q2);
-
     Eigen::Matrix3d Jdot = Eigen::Matrix3d::Zero();
 
-    Jdot.col(0).setZero();
+    // d/dt [s1, 0, -c1]
+    Jdot.col(1) <<  c1 * q1d, 0.0, s1 * q1d;
 
-    // d/dt [-c1, 0, s1]
-    Jdot.col(1) << s1 * q1d, 0.0, c1 * q1d;
-
-    // d/dt [s1*c2, s2, c1*c2]
+    // d/dt [c1*c2, -s2, s1*c2]
     Jdot.col(2) <<
-      (c1 * c2 * q1d - s1 * s2 * q2d),
-      (c2 * q2d),
-      (-s1 * c2 * q1d - c1 * s2 * q2d);
+      (-s1 * c2 * q1d - c1 * s2 * q2d),
+      (-c2 * q2d),
+      ( c1 * c2 * q1d - s1 * s2 * q2d);
 
     return Jdot;
   }
@@ -527,8 +520,8 @@ private:
     traj.joint_names = {"joint_1", "joint_2", "joint_3"};
 
     trajectory_msgs::msg::JointTrajectoryPoint pt;
-    pt.positions = {q[0], q[1], q[2]};
-    pt.velocities = {qdot[0], qdot[1], qdot[2]};
+    pt.positions     = {q[0],     q[1],     q[2]};
+    pt.velocities    = {qdot[0],  qdot[1],  qdot[2]};
     pt.accelerations = {qddot[0], qddot[1], qddot[2]};
     pt.time_from_start.sec = 0;
     pt.time_from_start.nanosec = 10000000;  // 10 ms

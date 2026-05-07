@@ -1,0 +1,18 @@
+# Joint limits override for MoveIt planning
+# These can be more conservative than URDF limits for safety
+joint_limits:
+  joint_1:
+    has_velocity_limits: true
+    max_velocity: 1.5
+    has_acceleration_limits: true
+    max_acceleration: 3.0
+  joint_2:
+    has_velocity_limits: true
+    max_velocity: 1.5
+    has_acceleration_limits: true
+    max_acceleration: 3.0
+  joint_3:
+    has_velocity_limits: true
+    max_velocity: 1.5
+    has_acceleration_limits: true
+    max_acceleration: 3.0

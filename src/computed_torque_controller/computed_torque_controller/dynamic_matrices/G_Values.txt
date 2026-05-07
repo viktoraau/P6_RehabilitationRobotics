@@ -1,5 +1,5 @@
-G1 = (0.3448066339*cos(theta2) - 0.5344282535 + (-0.5780280360*sin(theta3) + 3.748271471*cos(theta3) - 2.211641322)*sin(theta2))*cos(theta1) + ((-0.5780280360*sin(theta3) + 3.748271471*cos(theta3) - 2.211641322)*cos(theta2) - 0.3448066339*sin(theta2) + 5.739648031)*sin(theta1)
+G1 = (0.3320905892*cos(theta2) - 0.3446235207 + (-0.6397204940*sin(theta3) + 3.935458470*cos(theta3) - 2.497383786)*sin(theta2))*cos(theta1) + ((-0.6397204940*sin(theta3) + 3.935458470*cos(theta3) - 2.497383786)*cos(theta2) - 0.3320905892*sin(theta2) + 5.765946027)*sin(theta1)
 
-G2 = (0.3448066339*cos(theta2) + (-0.5780280360*sin(theta3) + 3.748271471*cos(theta3) - 2.211641322)*sin(theta2))*cos(theta1) + (-0.5780280360*sin(theta3) + 3.748271471*cos(theta3) - 2.211641322)*cos(theta2)*sin(theta1) - 0.3448066339*sin(theta1)*sin(theta2)
+G2 = (0.3320905892*cos(theta2) + (-0.6397204940*sin(theta3) + 3.935458470*cos(theta3) - 2.497383786)*sin(theta2))*cos(theta1) + (-0.6397204940*sin(theta3) + 3.935458470*cos(theta3) - 2.497383786)*sin(theta1)*cos(theta2) - 0.3320905892*sin(theta1)*sin(theta2)
 
-G3 = 0.5780280359*(6.484584202*sin(theta3) + 0.9999999998*cos(theta3))*(cos(theta1)*cos(theta2) - 1*sin(theta1)*sin(theta2))
+G3 = 0.6397204940*(6.151840542*sin(theta3) + 1.000000000*cos(theta3))*(cos(theta1)*cos(theta2) - 1*sin(theta1)*sin(theta2))

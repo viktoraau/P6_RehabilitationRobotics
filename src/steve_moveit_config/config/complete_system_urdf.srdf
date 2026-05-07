@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SRDF for the Steve 3-axis rehabilitation robot.
+  Defines the planning group, end-effector, and default poses.
+-->
+<robot name="complete_system_urdf">
+  <!-- Planning group containing the 3-DOF serial chain -->
+  <group name="arm">
+    <chain base_link="base_link" tip_link="RU_1"/>
+  </group>
+
+  <!-- Named target poses -->
+  <group_state name="home" group="arm">
+    <joint name="joint_1" value="0.0"/>
+    <joint name="joint_2" value="0.0"/>
+    <joint name="joint_3" value="0.0"/>
+  </group_state>
+
+  <!-- Disable collision checking between adjacent links -->
+  <disable_collisions link1="base_link" link2="SP_1" reason="Adjacent"/>
+  <disable_collisions link1="SP_1" link2="FE_1" reason="Adjacent"/>
+  <disable_collisions link1="FE_1" link2="RU_1" reason="Adjacent"/>
+  <!-- Never in contact given joint limits -->
+  <disable_collisions link1="base_link" link2="FE_1" reason="Never"/>
+  <disable_collisions link1="base_link" link2="RU_1" reason="Never"/>
+  <disable_collisions link1="SP_1" link2="RU_1" reason="Never"/>
+</robot>

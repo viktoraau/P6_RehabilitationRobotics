@@ -1,10 +1,10 @@
-from typing import Optional
+from typing import Iterable, Optional
 
 from control_msgs.msg import DynamicJointState
 
 
 class BrakeChopperController:
-    """Simple over-voltage controller: HIGH when voltage exceeds trigger."""
+    """Simple low-voltage controller: HIGH when voltage drops below trigger."""
 
     def __init__(self, trigger_voltage_v: float) -> None:
         if trigger_voltage_v <= 0.0:
@@ -39,3 +39,25 @@ def extract_dynamic_joint_state_value(
                 return float(value)
 
     return None
+
+
+def extract_dynamic_joint_state_values(
+    msg: DynamicJointState, joint_names: Iterable[str], interface_name: str
+) -> list[float]:
+    wanted_names = {name.strip() for name in joint_names if name and name.strip()}
+    if not wanted_names:
+        return []
+
+    values = []
+    for current_name, interface_values in zip(msg.joint_names, msg.interface_values):
+        if current_name not in wanted_names:
+            continue
+
+        for current_interface, value in zip(
+            interface_values.interface_names, interface_values.values
+        ):
+            if current_interface == interface_name:
+                values.append(float(value))
+                break
+
+    return values

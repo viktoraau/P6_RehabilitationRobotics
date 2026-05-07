@@ -8,10 +8,15 @@ import rclpy
 from candle_ros2.msg import ControlModuleData
 from control_msgs.msg import DynamicJointState
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from std_msgs.msg import Bool, Float64
 
 from mab_brake_chopper.gpio_backend import GpioError, LinuxCharGpioBackend, MockGpioBackend
-from mab_brake_chopper.logic import BrakeChopperController, extract_dynamic_joint_state_value
+from mab_brake_chopper.logic import (
+    BrakeChopperController,
+    extract_dynamic_joint_state_value,
+    extract_dynamic_joint_state_values,
+)
 
 
 class BrakeChopperNode(Node):
@@ -22,6 +27,7 @@ class BrakeChopperNode(Node):
         self.declare_parameter("voltage_source", "dynamic_joint_state")
         self.declare_parameter("control_module_topic", "")
         self.declare_parameter("dynamic_joint_states_topic", "/dynamic_joint_states")
+        self.declare_parameter("dynamic_joint_names", Parameter.Type.STRING_ARRAY)
         self.declare_parameter("dynamic_joint_name", "mab_power_stage")
         self.declare_parameter("dynamic_interface_name", "bus_voltage")
         self.declare_parameter("voltage_scale", 0.001)
@@ -40,10 +46,15 @@ class BrakeChopperNode(Node):
         self.dynamic_joint_states_topic = str(
             self.get_parameter("dynamic_joint_states_topic").value
         ).strip()
+        self.dynamic_joint_names = _normalize_joint_names(
+            self.get_parameter("dynamic_joint_names").value
+        )
         self.dynamic_joint_name = str(self.get_parameter("dynamic_joint_name").value).strip()
         self.dynamic_interface_name = str(
             self.get_parameter("dynamic_interface_name").value
         ).strip()
+        if not self.dynamic_joint_names and self.dynamic_joint_name:
+            self.dynamic_joint_names = [self.dynamic_joint_name]
         self.voltage_scale = float(self.get_parameter("voltage_scale").value)
         self.trigger_voltage_v = float(self.get_parameter("trigger_voltage_v").value)
         self.telemetry_timeout_sec = float(
@@ -146,15 +157,24 @@ class BrakeChopperNode(Node):
         self._handle_voltage_sample(float(msg.bus_voltage), "control_module")
 
     def _on_dynamic_joint_states(self, msg: DynamicJointState) -> None:
+        raw_values = extract_dynamic_joint_state_values(
+            msg,
+            joint_names=self.dynamic_joint_names,
+            interface_name=self.dynamic_interface_name,
+        )
+        if raw_values:
+            # The brake logic is low-voltage triggered, so use the minimum
+            # drive voltage as the conservative aggregate sample.
+            self._handle_voltage_sample(min(raw_values), "dynamic_joint_state")
+            return
+
         raw_value = extract_dynamic_joint_state_value(
             msg,
             joint_name=self.dynamic_joint_name,
             interface_name=self.dynamic_interface_name,
         )
-        if raw_value is None:
-            return
-
-        self._handle_voltage_sample(raw_value, "dynamic_joint_state")
+        if raw_value is not None:
+            self._handle_voltage_sample(raw_value, "dynamic_joint_state")
 
     def _handle_voltage_sample(self, raw_voltage: float, source_name: str) -> None:
         voltage_v = raw_voltage * self.voltage_scale
@@ -295,6 +315,16 @@ def _pid_alive(pid: int) -> bool:
         return False
     except OSError:
         return True
+
+
+def _normalize_joint_names(value) -> list[str]:
+    if isinstance(value, str):
+        return [part.strip() for part in value.split(",") if part.strip()]
+
+    if isinstance(value, (list, tuple)):
+        return [str(part).strip() for part in value if str(part).strip()]
+
+    return []
 
 
 def main(args=None) -> None:

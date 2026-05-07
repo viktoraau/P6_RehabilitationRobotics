@@ -12,8 +12,8 @@ voltage drops below a trigger threshold.
 
 ## Supported voltage sources
 
-- `dynamic_joint_state` from `mab_ros2_control` via `/dynamic_joint_states`
-  using `mab_power_stage/bus_voltage`
+- `dynamic_joint_state` from `/dynamic_joint_states`
+  using one or more joint `voltage` state interfaces
 - `control_module` from `candle_ros2` via `pds/id_<id>/control_module`
 
 Default mode is `dynamic_joint_state`, so the brake chopper follows the faster
@@ -47,5 +47,6 @@ ros2 launch mab_brake_chopper brake_chopper.launch.py \
 
 - The Linux GPIO character device needs permission to access the matching
   `/dev/gpiochip*` node.
-- Bus voltage from the current MAB stack is reported in millivolts, so the node
-  scales incoming values by `0.001` before applying the threshold.
+- Joint drive voltage from the current `mab_rehab` stack is reported directly in
+  volts. If you switch back to a millivolt telemetry source, adjust
+  `voltage_scale` accordingly.

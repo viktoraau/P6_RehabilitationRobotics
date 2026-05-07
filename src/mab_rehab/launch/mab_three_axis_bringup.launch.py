@@ -11,6 +11,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 from ament_index_python.packages import get_package_share_directory
 import yaml
@@ -212,7 +213,7 @@ def _build_launch_nodes(context, controllers_file, installed_share):
                         xacro_args, f"{key}_{index}", friction[key])
 
 
-    robot_description = {"robot_description": Command(xacro_args)}
+    robot_description = {"robot_description": ParameterValue(Command(xacro_args), value_type=str)}
 
     control_node = Node(
         package="controller_manager",
@@ -223,10 +224,6 @@ def _build_launch_nodes(context, controllers_file, installed_share):
             rate_params.name,
             {"inactive": True},
         ],
-        additional_env={
-            "MAB_SPI_SPEED_HZ": LaunchConfiguration("spi_speed_hz").perform(context),
-            "MAB_SPI_PATH": LaunchConfiguration("spi_path").perform(context),
-        },
         output="screen",
     )
 
@@ -340,10 +337,12 @@ def _build_launch_nodes(context, controllers_file, installed_share):
                         "gpio_chip_path": LaunchConfiguration(
                             "brake_gpio_chip_path"
                         ).perform(context),
+                        "voltage_scale": 1.0,
                         "control_module_topic": f"pds/id_{pds_id}/control_module",
                         "dynamic_joint_states_topic": "/dynamic_joint_states",
-                        "dynamic_joint_name": "mab_power_stage",
-                        "dynamic_interface_name": "bus_voltage",
+                        "dynamic_joint_names": ["joint_1", "joint_2", "joint_3"],
+                        "dynamic_joint_name": "joint_1",
+                        "dynamic_interface_name": "voltage",
                     }
                 ],
             )
@@ -359,18 +358,16 @@ def generate_launch_description():
     installed_share = get_package_share_directory("mab_rehab")
 
     return LaunchDescription([
-        DeclareLaunchArgument("bus", default_value="SPI"),
+        DeclareLaunchArgument("bus", default_value="USB"),
         DeclareLaunchArgument("data_rate", default_value="5M"),
-        DeclareLaunchArgument("spi_speed_hz", default_value="12500000"),
-        DeclareLaunchArgument("spi_path", default_value="/dev/spidev0.0"),
         DeclareLaunchArgument("use_pds", default_value="true"),
         DeclareLaunchArgument("use_regular_can_frames", default_value="false"),
         DeclareLaunchArgument("pds_id", default_value="100"),
         DeclareLaunchArgument("power_stage_socket", default_value="2"),
         DeclareLaunchArgument("fast_mode", default_value="false"),
         DeclareLaunchArgument("md_id_1", default_value="37"),
-        DeclareLaunchArgument("md_id_2", default_value="940"),
-        DeclareLaunchArgument("md_id_3", default_value="941"),
+        DeclareLaunchArgument("md_id_2", default_value="941"),
+        DeclareLaunchArgument("md_id_3", default_value="940"),
         DeclareLaunchArgument(
             "md_config_1", default_value=installed_share + "/config/motors/joint_1.cfg"),
         DeclareLaunchArgument(
@@ -379,7 +376,7 @@ def generate_launch_description():
             "md_config_3", default_value=installed_share + "/config/motors/joint_3.cfg"),
 
         DeclareLaunchArgument("controller_update_rate_hz", default_value="100"),
-        DeclareLaunchArgument("controller_thread_priority", default_value="99"),
+        DeclareLaunchArgument("controller_thread_priority", default_value="50"),
         DeclareLaunchArgument(
             "startup_reference_file",
             default_value=installed_share + "/config/startup_reference.yaml"),
@@ -391,12 +388,12 @@ def generate_launch_description():
             default_value=installed_share + "/config/pid_tuning.yaml"),
         DeclareLaunchArgument("active_controller", default_value="trajectory"),
         DeclareLaunchArgument("spawn_inactive_controllers", default_value="true"),
-        DeclareLaunchArgument("controller_spawn_initial_delay_sec", default_value="2.0"),
+        DeclareLaunchArgument("controller_spawn_initial_delay_sec", default_value="3.0"),
         DeclareLaunchArgument("controller_spawn_stagger_sec", default_value="1.0"),
-        DeclareLaunchArgument("enable_brake_chopper", default_value="true"),
+        DeclareLaunchArgument("enable_brake_chopper", default_value="false"),
         DeclareLaunchArgument("brake_voltage_source", default_value="dynamic_joint_state"),
-        DeclareLaunchArgument("brake_trigger_voltage_v", default_value="25.0"),
-        DeclareLaunchArgument("brake_telemetry_timeout_sec", default_value="1.0"),
+        DeclareLaunchArgument("brake_trigger_voltage_v", default_value="27.0"),
+        DeclareLaunchArgument("brake_telemetry_timeout_sec", default_value="2.0"),
         DeclareLaunchArgument("brake_gpio_pin", default_value="17"),
         DeclareLaunchArgument("brake_gpio_backend", default_value="linux_char"),
         DeclareLaunchArgument("brake_gpio_chip_label", default_value="pinctrl-rp1"),

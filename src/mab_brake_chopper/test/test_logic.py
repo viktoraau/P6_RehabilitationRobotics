@@ -1,19 +1,23 @@
 from control_msgs.msg import DynamicJointState, InterfaceValue
 
-from mab_brake_chopper.logic import BrakeChopperController, extract_dynamic_joint_state_value
+from mab_brake_chopper.logic import (
+    BrakeChopperController,
+    extract_dynamic_joint_state_value,
+    extract_dynamic_joint_state_values,
+)
 
 
-def test_threshold_controller_turns_on_above_trigger_and_off_below():
+def test_threshold_controller_turns_on_below_trigger_and_off_above():
     controller = BrakeChopperController(trigger_voltage_v=54.0)
 
     assert controller.enabled is False
-    assert controller.update(54.5) is True
+    assert controller.update(53.5) is True
     assert controller.enabled is True
 
-    assert controller.update(55.0) is False
+    assert controller.update(53.0) is False
     assert controller.enabled is True
 
-    assert controller.update(53.8) is True
+    assert controller.update(54.2) is True
     assert controller.enabled is False
 
 
@@ -44,3 +48,19 @@ def test_extract_dynamic_joint_state_value_returns_none_when_missing():
         )
         is None
     )
+
+
+def test_extract_dynamic_joint_state_values_reads_multiple_matching_interfaces():
+    msg = DynamicJointState()
+    msg.joint_names = ["joint_1", "joint_2", "joint_3"]
+    msg.interface_values = [
+        InterfaceValue(interface_names=["voltage"], values=[23.9]),
+        InterfaceValue(interface_names=["voltage", "temperature"], values=[23.7, 40.0]),
+        InterfaceValue(interface_names=["position"], values=[1.0]),
+    ]
+
+    assert extract_dynamic_joint_state_values(
+        msg,
+        joint_names=["joint_1", "joint_2", "joint_3"],
+        interface_name="voltage",
+    ) == [23.9, 23.7]

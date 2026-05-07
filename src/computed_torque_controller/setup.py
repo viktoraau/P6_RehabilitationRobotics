@@ -16,6 +16,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config', ['config/controller_kdl.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -29,6 +30,10 @@ setup(
             (
                 'controller_node = '
                 'computed_torque_controller.controller_node:main'
+            ),
+            (
+                'controller_node_kdl = '
+                'computed_torque_controller.controller_node_kdl:main'
             ),
         ],
     },

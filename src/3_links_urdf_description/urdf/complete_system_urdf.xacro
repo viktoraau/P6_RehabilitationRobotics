@@ -2,13 +2,13 @@
 <robot name="complete_system_urdf" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
 <xacro:include filename="$(find complete_system_urdf_description)/urdf/materials.xacro" />
-<xacro:include filename="$(find complete_system_urdf_description)/urdf/complete_system_urdf.ros2control" />
+<xacro:include filename="$(find complete_system_urdf_description)/urdf/complete_system_urdf.ros2control.xml" />
 <xacro:include filename="$(find complete_system_urdf_description)/urdf/complete_system_urdf.gazebo" />
 <link name="base_link">
   <inertial>
-    <origin xyz="-0.029198791382221607 0.22398134735531283 -0.09489285599188749" rpy="0 0 0"/>
-    <mass value="1.4539912251743274"/>
-    <inertia ixx="0.01021" iyy="0.007322" izz="0.007077" ixy="-0.00011" iyz="-0.000354" ixz="-6e-06"/>
+    <origin xyz="-0.0004893152259659719 -0.2513490561575862 -0.11283715805734928" rpy="0 0 0"/>
+    <mass value="1.6888096724896144"/>
+    <inertia ixx="0.011059" iyy="0.008847" izz="0.009341" ixy="-5e-06" iyz="0.001084" ixz="-9e-06"/>
   </inertial>
   <visual>
     <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -25,91 +25,90 @@
   </collision>
 </link>
 
-<link name="Body1__1__1">
+<link name="SP_1">
   <inertial>
-    <origin xyz="0.06216244862253437 -0.11070935032705907 -0.015943553429518482" rpy="0 0 0"/>
-    <mass value="0.7966630718351357"/>
-    <inertia ixx="0.007599" iyy="0.00742" izz="0.009713" ixy="0.003864" iyz="0.002148" ixz="-0.001823"/>
+    <origin xyz="-0.00287850355471334 -0.170096729052721 0.0637259393764876" rpy="0 0 0"/>
+    <mass value="2.79251837723032"/>
+    <inertia ixx="0.007639595" iyy="0.003108243" izz="0.006948556" ixy="-0.000028142" iyz="-0.002786960" ixz="-0.000015599"/>
   </inertial>
   <visual>
-    <origin xyz="0.029967 -0.176148 -0.028781" rpy="0 0 0"/>
+    <origin xyz="-0.0003 0.235996 -0.006391" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="file://$(find complete_system_urdf_description)/meshes/Body1__1__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="file://$(find complete_system_urdf_description)/meshes/SP_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="0.029967 -0.176148 -0.028781" rpy="0 0 0"/>
+    <origin xyz="-0.0003 0.235996 -0.006391" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="file://$(find complete_system_urdf_description)/meshes/Body1__1__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="file://$(find complete_system_urdf_description)/meshes/SP_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
 
-<link name="Body6__2__1">
+<link name="FE_1">
   <inertial>
-    <origin xyz="-0.04701173824953431 0.00021188777037241951 -0.08678119435178486" rpy="0 0 0"/>
-    <mass value="0.4312680820281363"/>
-    <inertia ixx="0.003443" iyy="0.004987" izz="0.001932" ixy="6e-06" iyz="4e-06" ixz="-0.002082"/>
+    <origin xyz="0.0100230420189453 -0.147527232046006 -0.0596848006055911" rpy="0 0 0"/>
+    <mass value="1.73974792190052"/>
+    <inertia ixx="0.001249118" iyy="0.002103592" izz="0.002529205" ixy="-0.000716662" iyz="0.000405509" ixz="0.000552885"/>
   </inertial>
   <visual>
-    <origin xyz="-0.12195 0.036145 -0.031848" rpy="0 0 0"/>
+    <origin xyz="0.000339 0.001 0.190609" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="file://$(find complete_system_urdf_description)/meshes/Body6__2__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="file://$(find complete_system_urdf_description)/meshes/FE_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.12195 0.036145 -0.031848" rpy="0 0 0"/>
+    <origin xyz="0.000339 0.001 0.190609" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="file://$(find complete_system_urdf_description)/meshes/Body6__2__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="file://$(find complete_system_urdf_description)/meshes/FE_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
 
-<link name="Body2__3__1">
+<link name="RU_1">
   <inertial>
-    <origin xyz="0.0057898842437530545 -0.028375722981906756 0.03732478318815739" rpy="0 0 0"/>
-    <mass value="0.3084742163632643"/>
-    <inertia ixx="0.001918" iyy="0.001613" izz="0.000704" ixy="-6.9e-05" iyz="0.000608" ixz="0.000126"/>
+    <origin xyz="-0.0482140606157735 0.0785410329381029 -0.0549873784536445" rpy="0 0 0"/>
+    <mass value="3.76497890932792"/>
+    <inertia ixx="0.000698815" iyy="0.000957467" izz="0.001081425" ixy="-0.000000517" iyz="-0.000146456" ixz="0.000000757"/>
   </inertial>
   <visual>
-    <origin xyz="0.030254 0.036145 0.138152" rpy="0 0 0"/>
+    <origin xyz="-0.085661 0.001 -0.006391" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="file://$(find complete_system_urdf_description)/meshes/Body2__3__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="file://$(find complete_system_urdf_description)/meshes/RU_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="0.030254 0.036145 0.138152" rpy="0 0 0"/>
+    <origin xyz="-0.085661 0.001 -0.006391" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="file://$(find complete_system_urdf_description)/meshes/Body2__3__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="file://$(find complete_system_urdf_description)/meshes/RU_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
 
 <joint name="joint_1" type="revolute">
-  <origin xyz="-0.029967 0.176148 0.028781" rpy="0 0 0"/>
+  <origin xyz="0.0003 -0.235996 0.006391" rpy="0 0 0"/>
   <parent link="base_link"/>
-  <child link="Body1__1__1"/>
-  <axis xyz="-0.0 1.0 -0.0"/>
+  <child link="SP_1"/>
+  <axis xyz="0.0 -1.0 0.0"/>
   <limit upper="1.22173" lower="-1.22173" effort="100" velocity="100"/>
 </joint>
 
 <joint name="joint_2" type="revolute">
-  <origin xyz="0.151917 -0.212293 0.003067" rpy="0 0 0"/>
-  <parent link="Body1__1__1"/>
-  <child link="Body6__2__1"/>
-  <axis xyz="-1.0 0.0 -0.0"/>
-  <limit upper="0.523599" lower="-0.523599" effort="100" velocity="100"/>
-</joint>
-
-<joint name="joint_3" type="revolute">
-  <origin xyz="-0.152204 0.0 -0.17" rpy="0 0 0"/>
-  <parent link="Body6__2__1"/>
-  <child link="Body2__3__1"/>
-  <axis xyz="-0.0 0.0 1.0"/>
+  <origin xyz="-0.000639 0.234996 -0.197" rpy="0 0 0"/>
+  <parent link="SP_1"/>
+  <child link="FE_1"/>
+  <axis xyz="0.0 0.0 -1.0"/>
   <limit upper="1.047198" lower="-1.047198" effort="100" velocity="100"/>
 </joint>
 
+<joint name="joint_3" type="revolute">
+  <origin xyz="0.086 0.0 0.197" rpy="0 0 0"/>
+  <parent link="FE_1"/>
+  <child link="RU_1"/>
+  <axis xyz="1.0 0.0 0.0"/>
+  <limit upper="0.523599" lower="-0.523599" effort="100" velocity="100"/>
+</joint>
 </robot>

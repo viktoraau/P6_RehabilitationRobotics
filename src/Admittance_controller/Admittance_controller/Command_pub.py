@@ -11,7 +11,7 @@ class CommandPub(Node):
         
         self.subscriptionTraj = self.create_subscription(
             JointTrajectory,
-            '/joint_trajectory_controller/joint_trajectory',
+            'joint_trajectory_controller/JointTrajectoryController',
             self.listener_traj_callback,
             10)
         
@@ -21,7 +21,7 @@ class CommandPub(Node):
             10)
         
         
-        self.commands = [2,0,1]
+        self.commands = [0,1,2]
         self.joint_speeds = np.zeros(3)
         self.joints = np.full((3,4), -1)
 
@@ -37,11 +37,10 @@ class CommandPub(Node):
         speed = Float64MultiArray()
         speed.data = np.zeros(3)
         speed.data[self.commands[0]] = self.joint_speeds[0]
-        speed.data[self.commands[1]] = self.joint_speeds[1] * 4
-        speed.data[self.commands[2]] = self.joint_speeds[2] * 3
-
+        speed.data[self.commands[1]] = self.joint_speeds[1] 
+        speed.data[self.commands[2]] = self.joint_speeds[2] 
         self.publisher_.publish(speed)
-        #self.get_logger().info(f"Published speeds: {speed.data}")
+        self.get_logger().info(f"Published speeds: {speed.data}")
 
         
 

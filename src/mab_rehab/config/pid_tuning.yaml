@@ -9,32 +9,32 @@ pid_tuning:
   joints:
     joint_1:
       position_pid:
-        kp: 70.0
-        ki: 8.0
+        kp: 60.500000
+        ki: 5.00000
         kd: 0.0
-        windup: 4.0
+        windup: 8.0
       velocity_pid:
-        kp: 15.5
-        ki: 6.0
+        kp: 30.0
+        ki: 4.0
         kd: 0.0
-        windup: 7.5
+        windup: 5.0
       impedance:
         kp: 0.0
         kd: 0.0
       friction:
-        motor_friction: 2.6   # dynamic (viscous) friction [Nm·s/rad]
-        motor_stiction: 3.5   # static (breakaway) friction [Nm]
+        motor_friction: 3.6   # dynamic (viscous) friction [Nm·s/rad]
+        motor_stiction: 4.5   # static (breakaway) friction [Nm]
     joint_2:
       position_pid:
-        kp: 40.0
-        ki: 10.0
+        kp: 50.0
+        ki: 4.0
         kd: 0.0
-        windup: 3.5
+        windup: 5.0
       velocity_pid:
-        kp: 20.5
-        ki: 5.6
+        kp: 14.0
+        ki: 2.5
         kd: 0.0
-        windup: 2.0
+        windup: 4.0
       impedance:
         kp: 0.0
         kd: 0.0
@@ -43,15 +43,15 @@ pid_tuning:
         motor_stiction: 1.5
     joint_3:
       position_pid:
-        kp: 35.0
-        ki: 8.0
-        kd: 0.0
-        windup: 6.0
-      velocity_pid:
-        kp: 15.5
+        kp: 50.0
         ki: 4.0
         kd: 0.0
-        windup: 4.5
+        windup: 5.0
+      velocity_pid:
+        kp: 6.0
+        ki: 2.5
+        kd: 0.1
+        windup: 4.0
       impedance:
         kp: 0.0
         kd: 0.0

@@ -21,7 +21,7 @@ namespace mab
     class SPI final : public I_CommunicationInterface
     {
         static constexpr u8  SPI_MODE          = SPI_MODE_0;
-        static constexpr u32 SPI_SPEED         = 20'000'000;  // 20 MHz
+        static constexpr u32 SPI_SPEED         = 5'000'000;  // 5 MHz (reduced from 20 MHz to improve CRC reliability under multi-drive CAN load)
         static constexpr u8  SPI_BITS_PER_WORD = 8;
         static constexpr u32 MAX_TRANSFER_SIZE = 2048;
 

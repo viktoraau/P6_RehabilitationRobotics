@@ -1,0 +1,10 @@
+string patient_id
+string route        # "easy" or "medium"
+---
+bool    success
+string  message
+int32   score
+int32   rings_hit
+int32   rings_total
+int32   orbs_caught
+float32 total_time_s

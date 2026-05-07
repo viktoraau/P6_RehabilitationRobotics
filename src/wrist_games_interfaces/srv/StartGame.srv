@@ -1,0 +1,6 @@
+string patient_id
+---
+bool    success
+string  message
+int32   score
+float32 total_time_s

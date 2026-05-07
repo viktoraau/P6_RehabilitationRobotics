@@ -226,10 +226,6 @@ MABSystemHardware::CallbackReturn MABSystemHardware::on_activate(
     return CallbackReturn::ERROR;
   }
 
-  // Pre-allocate the futures buffer so write() never touches the heap.
-  write_futures_.clear();
-  write_futures_.resize(drives_.size());
-
   // --- Spin up RT primitives ---
   // NOTE: ModeSwitchWorker is intentionally not started. Mode switches stay
   // synchronous and take transport_mutex_ so the shared SPI/CANdle bus is
@@ -291,7 +287,6 @@ MABSystemHardware::CallbackReturn MABSystemHardware::on_cleanup(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   drives_.clear();
-  write_futures_.clear();
   pds_.teardown();
   transport_.disconnect();
   health_monitor_.reset();
@@ -400,13 +395,10 @@ hardware_interface::return_type MABSystemHardware::write(
     drive.set_position_command(position_cmd);
     drive.set_velocity_command(velocity_cmd);
     drive.set_effort_command(effort_cmd);
-    write_futures_[i] = drive.fire_write_async();
-  }
-
-  // Pass 2: collect all async results. All CAN frames were dispatched
-  // concurrently in Pass 1; this loop only waits for completions.
-  for (size_t i = 0; i < drives_.size(); ++i) {
-    drives_[i]->collect_write_result(std::move(write_futures_[i]));
+    // Use synchronous write: on SPI the async path blocks for READER_TIMEOUT
+    // (20 ms) on every CRC failure, which causes guaranteed RT overruns.
+    // The sync path fails in ~1 ms (m_timeout = 10 × 100 µs).
+    drive.write_command(now);
   }
 
   return hardware_interface::return_type::OK;

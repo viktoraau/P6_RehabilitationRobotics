@@ -14,23 +14,20 @@ class OrientationAdmittanceNode(Node):
     Input:  WrenchStamped (force and torque are both used)
     Output: desired orientation, angular velocity, angular acceleration in base frame
 
-    The wrench is transformed into the base frame, including the force-induced moment from the
-    transform translation between the wrench frame and the control frame.
+    Dynamics in base frame:
+        I * omega_dot + D * omega + K * theta_err = tau
 
-    Dynamics are modeled on a small-angle orientation state theta about a reference orientation:
-        I * theta_ddot + D * theta_dot + K * theta = tau
-
-    Desired absolute orientation is then:
-        R_des = R_ref * Exp(theta)
+    theta_err is the live rotation-vector error from the current TF pose to the desired pose.
+    The desired orientation q_des is integrated each tick via quaternion kinematics.
     """
 
     def __init__(self) -> None:
         super().__init__('orientation_admittance_controller')
 
         for name, default in (
-            ('input_topic', '/wrench_input'),
+            ('input_topic', '/ft300/wrench'),
             ('base_frame', 'base_link'),
-            ('default_wrench_frame', 'tool0'),
+            ('default_wrench_frame', 'RU_1'),
             ('control_rate_hz', 100.0),
             ('wrench_timeout_s', 0.1),
             ('max_dt_s', 0.05),
@@ -38,18 +35,18 @@ class OrientationAdmittanceNode(Node):
             ('inertia', [0.03, 0.03, 0.03]),
             ('damping', [0.08, 0.08, 0.08]),
             ('stiffness', [0.250, 0.250, 0.250]),
-            ('torque_deadband_nm', [0.01, 0.01, 0.01]),
+            ('torque_deadband_nm', [0.1, 0.1, 0.1]),
             ('torque_lowpass_cutoff_hz', 20.0),
-            ('force_to_torque_gain_nm_per_n', [0.01, 0.01, 0.01]),
+            ('force_to_torque_gain_nm_per_n', [0.00, 0.00, 0.00]),
             ('max_angular_velocity', [1.0, 1.0, 1.0]),
             ('max_angular_acceleration', [8.0, 8.0, 8.0]),
             ('max_orientation_error_rad', [0.5, 1.2, 1.0]),
-            ('reference_orientation_xyzw', [0.0, 0.0, 0.0, 1.0]),
-            ('initialize_reference_from_tf', False),
-            ('reference_tip_frame', 'Body2__3__1'),
+            ('reference_tip_frame', 'RU_1'),
             ('orientation_topic', '/desired_orientation'),
             ('angular_velocity_topic', '/desired_angular_velocity'),
             ('angular_acceleration_topic', '/desired_angular_acceleration'),
+            ('transparent_mode', False),
+            ('transparent_inertia', [0.005, 0.005, 0.005]),
         ):
             self.declare_parameter(name, default)
 
@@ -61,9 +58,18 @@ class OrientationAdmittanceNode(Node):
         self.max_dt_s = float(self.get_parameter('max_dt_s').value)
         self.min_dt_s = float(self.get_parameter('min_dt_s').value)
 
+        self.transparent_mode = bool(self.get_parameter('transparent_mode').value)
+        self.transparent_inertia = self._read_vec_param('transparent_inertia', positive=True)
+
         self.inertia = self._read_vec_param('inertia', positive=True)
-        self.damping = self._read_vec_param('damping')
         self.stiffness = self._read_vec_param('stiffness')
+        # Critical damping: D = 2 * sqrt(J * K) * zeta, zeta=1
+        self.damping = 2.0 * np.sqrt(self.inertia * self.stiffness) * 1.0
+
+        if self.transparent_mode:
+            self.inertia = self.transparent_inertia
+            self.damping = np.zeros(3, dtype=np.float64)
+            self.stiffness = np.zeros(3, dtype=np.float64)
         self.torque_deadband_nm = self._read_vec_param('torque_deadband_nm')
         self.max_angular_velocity = self._read_vec_param('max_angular_velocity', positive=True)
         self.max_angular_acceleration = self._read_vec_param('max_angular_acceleration', positive=True)
@@ -71,19 +77,15 @@ class OrientationAdmittanceNode(Node):
         self.torque_lowpass_cutoff_hz = float(self.get_parameter('torque_lowpass_cutoff_hz').value)
         self.force_to_torque_gain_nm_per_n = self._read_vec_param('force_to_torque_gain_nm_per_n')
 
-        q_xyzw = self.get_parameter('reference_orientation_xyzw').value
-        if len(q_xyzw) != 4:
-            raise ValueError('Parameter "reference_orientation_xyzw" must contain exactly 4 values [x,y,z,w]')
-        self.reference_rotation = self._quat_xyzw_to_matrix(np.asarray(q_xyzw, dtype=np.float64))
-
-        self.initialize_reference_from_tf = bool(self.get_parameter('initialize_reference_from_tf').value)
         self.reference_tip_frame = str(self.get_parameter('reference_tip_frame').value)
 
         self.orientation_topic = str(self.get_parameter('orientation_topic').value)
         self.angular_velocity_topic = str(self.get_parameter('angular_velocity_topic').value)
         self.angular_acceleration_topic = str(self.get_parameter('angular_acceleration_topic').value)
 
-        self.theta = np.zeros(3, dtype=np.float64)
+        self.q_ref = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float64)  # fixed reference, set once from TF
+        self.q_des = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float64)  # integrated desired orientation
+        self.q_des_initialized = False
         self.omega = np.zeros(3, dtype=np.float64)
         self.alpha = np.zeros(3, dtype=np.float64)
         self.filtered_torque_base = np.zeros(3, dtype=np.float64)
@@ -92,8 +94,8 @@ class OrientationAdmittanceNode(Node):
         self.latest_torque_sensor = np.zeros(3, dtype=np.float64)
         self.latest_wrench_frame = self.default_wrench_frame
         self.last_wrench_rx_time: Optional[rclpy.time.Time] = None
+        self.last_good_wrench_time: Optional[rclpy.time.Time] = None
         self.last_control_time: Optional[rclpy.time.Time] = None
-        self.reference_initialized = not self.initialize_reference_from_tf
         self._last_warn_time = {}
 
         self.tf_buffer = Buffer()
@@ -112,8 +114,9 @@ class OrientationAdmittanceNode(Node):
         period = 1.0 / max(self.control_rate_hz, 1.0)
         self.control_timer = self.create_timer(period, self._control_tick)
 
+        mode_str = 'TRANSPARENT (K=0, D=0)' if self.transparent_mode else 'normal'
         self.get_logger().info(
-            'Orientation admittance controller started. '
+            f'Orientation admittance controller started [{mode_str}]. '
             f'Input={self.input_topic}, base_frame={self.base_frame}, '
             f'orientation_topic={self.orientation_topic}'
         )
@@ -142,54 +145,86 @@ class OrientationAdmittanceNode(Node):
     def _control_tick(self) -> None:
         now = self.get_clock().now()
 
-        if self.last_control_time is None:
+        # Wait until TF is available to seed both q_ref and q_des
+        if not self.q_des_initialized:
+            q_init = self._get_tf_orientation_xyzw()
+            if q_init is None:
+                return
+            self.q_ref = q_init.copy()
+            self.q_des = q_init.copy()
+            self.q_des_initialized = True
             self.last_control_time = now
+            self.get_logger().info(
+                f'Initialized reference from TF {self.base_frame} -> {self.reference_tip_frame}'
+            )
             return
 
-        if not self.reference_initialized:
-            self._try_initialize_reference_from_tf()
+        if self.last_control_time is None:
             self.last_control_time = now
-            return
 
         dt = (now - self.last_control_time).nanoseconds * 1.0e-9
         self.last_control_time = now
-        if not math.isfinite(dt):
+        if not math.isfinite(dt) or dt <= 0.0:
             return
         dt = float(np.clip(dt, self.min_dt_s, self.max_dt_s))
+
+        # theta_err: rotation vector from fixed q_ref to current q_des
+        # Stiffness spring always pulls q_des back toward the startup pose
+        theta_err = self._quat_error_vec(self.q_ref, self.q_des)
 
         torque_base = self._get_torque_in_base(now)
         torque_base = self._apply_deadband(torque_base)
         self.filtered_torque_base = self._lowpass_filter(self.filtered_torque_base, torque_base, dt)
 
-        self.alpha = np.clip(
-            (
-                self.filtered_torque_base
-                - self.damping * self.omega
-                - self.stiffness * self.theta
-            ) / self.inertia,
-            -self.max_angular_acceleration,
-            self.max_angular_acceleration,
-        )
+        # Tustin / trapezoidal integration of  I*omega_dot + D*omega + K*theta = tau.
+        # alpha_now is recomputed from the current state at every tick — caching
+        # alpha across iterations was stale (it had been evaluated with the
+        # previous theta_err) and broke the trapezoidal invariant.
+        alpha_now = (
+            self.filtered_torque_base - self.damping * self.omega - self.stiffness * theta_err
+        ) / self.inertia
 
-        self.omega = np.clip(
-            self.omega + dt * self.alpha,
+        h = 0.5 * dt
+        denom = self.inertia + h * self.damping + h * h * self.stiffness
+        omega_new = np.clip(
+            (
+                self.inertia * (self.omega + h * alpha_now)
+                + h * (self.filtered_torque_base - self.stiffness * theta_err)
+                - h * h * self.stiffness * self.omega
+            ) / denom,
             -self.max_angular_velocity,
             self.max_angular_velocity,
         )
-        self.theta = np.clip(
-            self.theta + dt * self.omega,
-            -self.max_orientation_error_rad,
-            self.max_orientation_error_rad,
+
+        # At-limit: stop integrating q_des further away from q_ref
+        at_pos_limit = theta_err >= self.max_orientation_error_rad
+        at_neg_limit = theta_err <= -self.max_orientation_error_rad
+        at_limit = at_pos_limit | at_neg_limit
+        omega_new = np.where(at_limit & (theta_err * omega_new > 0.0), 0.0, omega_new)
+
+        # Integrate q_des via quaternion kinematics, then publish alpha consistent
+        # with the integrated state (theta_err_new), not the old theta_err.
+        avg_omega = 0.5 * (self.omega + omega_new)
+        self.q_des = self._integrate_quaternion(self.q_des, avg_omega, dt)
+        theta_err_new = self._quat_error_vec(self.q_ref, self.q_des)
+
+        alpha_new = np.clip(
+            (self.filtered_torque_base - self.damping * omega_new - self.stiffness * theta_err_new) / self.inertia,
+            -self.max_angular_acceleration,
+            self.max_angular_acceleration,
         )
+        alpha_new = np.where(at_limit, 0.0, alpha_new)
 
-        desired_rotation = self.reference_rotation @ self._exp_map(self.theta)
+        self.omega = omega_new
+        self.alpha = alpha_new
+
         stamp_msg = now.to_msg()
-
-        self._publish_orientation(desired_rotation, stamp_msg)
+        self._publish_orientation(self.q_des, stamp_msg)
         self._publish_vector(self.omega_pub, self.omega, stamp_msg)
         self._publish_vector(self.alpha_pub, self.alpha, stamp_msg)
 
-    def _try_initialize_reference_from_tf(self) -> None:
+    def _get_tf_orientation_xyzw(self) -> Optional[np.ndarray]:
+        """Return live orientation of reference_tip_frame in base_frame as [x,y,z,w], or None."""
         try:
             tf = self.tf_buffer.lookup_transform(
                 self.base_frame,
@@ -197,31 +232,34 @@ class OrientationAdmittanceNode(Node):
                 rclpy.time.Time(),
             )
             rot = tf.transform.rotation
-            self.reference_rotation = self._quat_xyzw_to_matrix(
-                np.array([rot.x, rot.y, rot.z, rot.w], dtype=np.float64)
-            )
-            self.reference_initialized = True
-            self.get_logger().info(
-                f"Initialized reference orientation from TF {self.base_frame} -> {self.reference_tip_frame}"
-            )
+            return np.array([rot.x, rot.y, rot.z, rot.w], dtype=np.float64)
         except TransformException as exc:
-            self._warn_throttled('reference_tf', f'Waiting for reference TF: {str(exc)}')
+            self._warn_throttled('reference_tf', f'TF lookup failed for reference: {str(exc)}')
+            return None
 
     def _get_torque_in_base(self, now) -> np.ndarray:
+        # No wrench has ever arrived — nothing to integrate against.
         if self.last_wrench_rx_time is None:
             return self._decay_torque()
 
-        age_s = (now - self.last_wrench_rx_time).nanoseconds * 1.0e-9
-        if age_s > self.wrench_timeout_s:
+        # Latest message is stale: the publisher has stopped or stalled.
+        age_rx = (now - self.last_wrench_rx_time).nanoseconds * 1.0e-9
+        if age_rx > self.wrench_timeout_s:
             self._warn_throttled(
                 'wrench_timeout',
-                f'No wrench received for {age_s:.3f}s (timeout={self.wrench_timeout_s:.3f}s).',
+                f'No wrench received for {age_rx:.3f}s (timeout={self.wrench_timeout_s:.3f}s).',
             )
             return self._decay_torque()
 
+        # Frame matches base — use the torque directly.
         if self.latest_wrench_frame == self.base_frame:
-            return self.latest_torque_sensor.copy() + self.force_to_torque_gain_nm_per_n * self.latest_force_sensor
+            self.last_good_wrench_time = self.last_wrench_rx_time
+            return (
+                self.latest_torque_sensor.copy()
+                + self.force_to_torque_gain_nm_per_n * self.latest_force_sensor
+            )
 
+        # Otherwise rotate into base via TF.
         try:
             tf = self.tf_buffer.lookup_transform(
                 self.base_frame,
@@ -229,17 +267,30 @@ class OrientationAdmittanceNode(Node):
                 rclpy.time.Time(),
             )
             rot = tf.transform.rotation
-            translation = tf.transform.translation
             rotation_matrix = self._quat_xyzw_to_matrix(
                 np.array([rot.x, rot.y, rot.z, rot.w], dtype=np.float64)
             )
             force_base = rotation_matrix @ self.latest_force_sensor
             torque_base = rotation_matrix @ self.latest_torque_sensor
-            offset_base = np.array((translation.x, translation.y, translation.z), dtype=np.float64)
-            return torque_base + np.cross(offset_base, force_base) + self.force_to_torque_gain_nm_per_n * force_base
+            self.last_good_wrench_time = self.last_wrench_rx_time
+            return torque_base + self.force_to_torque_gain_nm_per_n * force_base
         except TransformException as exc:
             self._warn_throttled('tf_lookup', f'TF lookup failed: {str(exc)}')
-            return self._decay_torque()
+            # If we previously had a usable wrench within the timeout window,
+            # hold the filtered value rather than letting an untransformable
+            # burst reset the integrated state. Otherwise decay so a steady
+            # stream of bad-frame messages doesn't lock the controller open.
+            if self.last_good_wrench_time is None:
+                self._warn_throttled(
+                    'no_good_wrench',
+                    f'Wrench frame {self.latest_wrench_frame!r} cannot be transformed '
+                    f'to {self.base_frame!r}; no usable wrench yet.',
+                )
+                return self._decay_torque()
+            good_age = (now - self.last_good_wrench_time).nanoseconds * 1.0e-9
+            if good_age > self.wrench_timeout_s:
+                return self._decay_torque()
+            return self.filtered_torque_base.copy()
 
     def _decay_torque(self) -> np.ndarray:
         return 0.9 * self.filtered_torque_base
@@ -254,15 +305,14 @@ class OrientationAdmittanceNode(Node):
         alpha = dt / (tau + dt)
         return alpha * current + (1.0 - alpha) * prev
 
-    def _publish_orientation(self, rotation: np.ndarray, stamp_msg) -> None:
-        q = self._matrix_to_quat_xyzw(rotation)
+    def _publish_orientation(self, q_xyzw: np.ndarray, stamp_msg) -> None:
         msg = QuaternionStamped()
         msg.header.stamp = stamp_msg
         msg.header.frame_id = self.base_frame
-        msg.quaternion.x = float(q[0])
-        msg.quaternion.y = float(q[1])
-        msg.quaternion.z = float(q[2])
-        msg.quaternion.w = float(q[3])
+        msg.quaternion.x = float(q_xyzw[0])
+        msg.quaternion.y = float(q_xyzw[1])
+        msg.quaternion.z = float(q_xyzw[2])
+        msg.quaternion.w = float(q_xyzw[3])
         self.orientation_pub.publish(msg)
 
     def _publish_vector(self, publisher, vec: np.ndarray, stamp_msg) -> None:
@@ -275,26 +325,45 @@ class OrientationAdmittanceNode(Node):
         publisher.publish(msg)
 
     @staticmethod
-    def _skew(v: np.ndarray) -> np.ndarray:
-        return np.array(
-            [
-                [0.0, -v[2], v[1]],
-                [v[2], 0.0, -v[0]],
-                [-v[1], v[0], 0.0],
-            ],
-            dtype=np.float64,
-        )
+    def _quat_error_vec(q_ref_xyzw: np.ndarray, q_des_xyzw: np.ndarray) -> np.ndarray:
+        """Rotation vector (axis*angle) from q_ref to q_des in base frame.
 
-    @classmethod
-    def _exp_map(cls, rotvec: np.ndarray) -> np.ndarray:
-        theta = float(np.linalg.norm(rotvec))
-        if theta < 1.0e-12:
-            K = cls._skew(rotvec)
-            return np.eye(3, dtype=np.float64) + K
+        Uses the exact log map theta = 2*atan2(|v|, w), not the small-angle 2*v
+        approximation: at the 1.2 rad max-orientation-error limit the latter
+        underestimates the spring torque by ~6%, shifting the steady-state pose.
+        """
+        rx, ry, rz, rw = q_ref_xyzw
+        dx, dy, dz, dw = q_des_xyzw
+        # Hamilton product q_des ⊗ conj(q_ref), where conj flips the vector part
+        cx = dw * (-rx) + dx * rw + dy * (-rz) - dz * (-ry)
+        cy = dw * (-ry) - dx * (-rz) + dy * rw + dz * (-rx)
+        cz = dw * (-rz) + dx * (-ry) - dy * (-rx) + dz * rw
+        cw = dw * rw + dx * rx + dy * ry + dz * rz
+        # Pick the shorter arc (q and -q represent the same rotation)
+        if cw < 0.0:
+            cx, cy, cz, cw = -cx, -cy, -cz, -cw
+        v_norm = math.sqrt(cx * cx + cy * cy + cz * cz)
+        if v_norm < 1.0e-12:
+            return np.zeros(3, dtype=np.float64)
+        theta = 2.0 * math.atan2(v_norm, cw)
+        scale = theta / v_norm
+        return np.array([cx * scale, cy * scale, cz * scale], dtype=np.float64)
 
-        axis = rotvec / theta
-        K = cls._skew(axis)
-        return np.eye(3, dtype=np.float64) + math.sin(theta) * K + (1.0 - math.cos(theta)) * (K @ K)
+    @staticmethod
+    def _integrate_quaternion(q_xyzw: np.ndarray, omega: np.ndarray, dt: float) -> np.ndarray:
+        """Integrate unit quaternion given angular velocity omega in base frame."""
+        ox, oy, oz = omega
+        qx, qy, qz, qw = q_xyzw
+        # q_dot = 0.5 * [ox,oy,oz,0] ⊗ q  (world-frame omega convention)
+        dqx = 0.5 * ( ox * qw + oy * qz - oz * qy)
+        dqy = 0.5 * (-ox * qz + oy * qw + oz * qx)
+        dqz = 0.5 * ( ox * qy - oy * qx + oz * qw)
+        dqw = 0.5 * (-ox * qx - oy * qy - oz * qz)
+        q_new = q_xyzw + dt * np.array([dqx, dqy, dqz, dqw], dtype=np.float64)
+        norm = np.linalg.norm(q_new)
+        if norm < 1.0e-12:
+            return q_xyzw.copy()
+        return q_new / norm
 
     @staticmethod
     def _quat_xyzw_to_matrix(q_xyzw: np.ndarray) -> np.ndarray:

@@ -2,22 +2,22 @@ safety_limits:
   enabled: false
   joints:
     joint_1:
-      position_min: -1.2
-      position_max: 1.2
+      position_min: -1.1344640137963142
+      position_max: 1.1344640137963142
       max_velocity: 200.0
       max_acceleration: 500.0
       max_deceleration: 500.0
       max_torque: 200.0
     joint_2:
-      position_min: -0.55
-      position_max: 0.55
+      position_min: -1.0471975511965976
+      position_max: 1.0471975511965976
       max_velocity: 200.0
       max_acceleration: 500.0
       max_deceleration: 500.0
       max_torque: 200.0
     joint_3:
-      position_min: -1.05
-      position_max: 1.05
+      position_min: -0.5235987755982988
+      position_max: 0.5235987755982988
       max_velocity: 200.0
       max_acceleration: 500.0
       max_deceleration: 500.0

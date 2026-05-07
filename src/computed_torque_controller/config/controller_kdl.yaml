@@ -1,0 +1,65 @@
+computed_torque_controller_kdl:
+  ros__parameters:
+
+    # ── Robot chain ──────────────────────────────────────────────────────────
+    # KDL derives M, C, G from the URDF published on /robot_description.
+    base_link: base_link
+    tip_link:  RU_1                # last link of the 3-DOF chain
+
+    # Gravity vector in the root frame [m/s²]
+    gravity: [0.0, 0.0, -9.81]
+
+    # ── Joint configuration ──────────────────────────────────────────────────
+    joint_names:
+      - joint_1
+      - joint_2
+      - joint_3
+
+    # ── Topics ───────────────────────────────────────────────────────────────
+    joint_state_topic:         /joint_states
+    # Must match the topic the IK node publishes to
+    # (ik_damped_jacobian_node default: /joint_trajectory_controller/joint_trajectory).
+    desired_trajectory_topic:  /joint_trajectory_controller/joint_trajectory
+    torque_command_topic:      /joint_group_effort_controller/commands
+
+    # ── Control rate ─────────────────────────────────────────────────────────
+    control_rate_hz: 100.0
+
+    # ── Controller gains (set to 0 – tune before running) ────────────────────
+    # Format: [joint_1, joint_2, joint_3]
+    kp: [10.0, 10.0, 10.0]
+    kd: [10.0, 10.0, 10.0]
+
+    # ── Friction model ───────────────────────────────────────────────────────
+    # Viscous friction coefficients B_i  (τ_visc = B_i · q̇_i)
+    viscous_friction: [2.24960223, 0.6635982131, 0.4467652881]
+
+    # Coulomb friction amplitudes Fc_i  (τ_coul = Fc_i · tanh(α · q̇_i))
+    coulomb_friction: [2.293041808, 0.9338754411, 0.797441937]
+
+    # Scale factor α in the tanh approximation of sign(q̇)
+    # Lower = smoother zero-crossing, less oscillation from velocity noise.
+    # 2.0 is recommended for transparent mode; 10.0 is fine for tracking.
+    coulomb_tanh_scale: 2.0
+
+    # ── Motor inertia (diagonal Jm added to M) ───────────────────────────────
+    use_motor_inertia: true
+    motor_inertia: [0.356086015457996, 0.0, 0.0]   # [kg·m²] per joint
+
+    # ── Torque scaling (joint-space torque → actuator command) ───────────────
+    torque_scale: [4.2535, 8.1687, 5.1775]
+
+    # ── Per-joint gravity sign correction ────────────────────────────────────
+    # If a joint feels like it is being pulled down (gravity compensation goes
+    # the wrong way), flip its sign here: 1.0 = as-is, -1.0 = inverted.
+    # joint_3 axis is xyz="-1 0 0" which can cause a sign flip vs hardware.
+    gravity_scale: [1.0, 1.0, 1.0]
+
+    # ── Transparent mode ─────────────────────────────────────────────────────
+    # When true: kp/kd are ignored, no trajectory needed.
+    # Output = G(q) + C(q,q̇)·q̇ + friction  →  arm feels weightless to user.
+    transparent_mode: false
+
+    # Fraction of friction compensation applied in transparent mode (0–1).
+    # Reduce if oscillations occur near zero velocity. Start at 0.3 and tune up.
+    transparent_friction_scale: 1.0

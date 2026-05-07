@@ -1,0 +1,15 @@
+# MoveIt controller configuration
+# Tells MoveIt which ros2_control controllers to use for execution
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+moveit_simple_controller_manager:
+  controller_names:
+    - joint_trajectory_controller
+
+  joint_trajectory_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3

@@ -1,0 +1,5 @@
+string patient_id
+---
+bool   success
+string message
+string rom_file   # absolute path to the saved JSON, empty on failure

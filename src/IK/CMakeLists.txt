@@ -30,8 +30,26 @@ ament_target_dependencies(orientation_ik_3r_node
 
 target_compile_features(orientation_ik_3r_node PUBLIC cxx_std_17)
 
+add_executable(ik_damped_jacobian_node
+  src/ik_damped_jacobian_node.cpp
+)
+
+target_include_directories(ik_damped_jacobian_node PRIVATE
+  ${EIGEN3_INCLUDE_DIRS}
+)
+
+ament_target_dependencies(ik_damped_jacobian_node
+  rclcpp
+  tf2_msgs
+  geometry_msgs
+  trajectory_msgs
+)
+
+target_compile_features(ik_damped_jacobian_node PUBLIC cxx_std_17)
+
 install(TARGETS
   orientation_ik_3r_node
+  ik_damped_jacobian_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

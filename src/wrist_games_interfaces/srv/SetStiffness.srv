@@ -1,0 +1,4 @@
+float64[3] stiffness
+---
+bool success
+string message

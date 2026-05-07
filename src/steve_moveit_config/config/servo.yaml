@@ -1,0 +1,49 @@
+# MoveIt Servo configuration for the Steve robot
+# Enables real-time Cartesian / joint jog control
+###############################################################
+
+# General
+use_gazebo: false
+is_primary_planning_scene_monitor: false
+
+## Properties of incoming commands
+command_in_type: "speed_units"    # "unitless" | "speed_units"
+scale:
+  linear: 0.3
+  rotational: 0.5
+  joint: 0.5
+
+## Low-pass filter on outgoing commands (0 = off, 1 = 1 step lag)
+low_pass_filter_coeff: 4.0
+
+## Properties of outgoing commands
+publish_period: 0.01             # 100 Hz
+command_out_type: trajectory_msgs/JointTrajectory
+publish_joint_positions: true
+publish_joint_velocities: true
+publish_joint_accelerations: false
+command_out_topic: /joint_trajectory_controller/joint_trajectory
+
+## MoveIt properties
+move_group_name: arm
+planning_frame: base_link
+ee_frame_name: tool0
+
+## Collision-aware servoing
+check_collisions: true
+collision_check_rate: 10.0
+self_collision_proximity_threshold: 0.01
+scene_collision_proximity_threshold: 0.02
+
+## Joint limits
+override_velocity_scaling_factor: 0.0    # 0 = use URDF limits
+
+## Singularity management
+lower_singularity_threshold: 17.0
+hard_stop_singularity_threshold: 30.0
+leaving_singularity_threshold_multiplier: 2.0
+
+## Topic names
+joint_topic: /joint_states
+status_topic: ~/status
+command_out_topic: /joint_trajectory_controller/joint_trajectory

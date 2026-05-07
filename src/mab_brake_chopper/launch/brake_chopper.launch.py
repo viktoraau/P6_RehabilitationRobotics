@@ -17,6 +17,7 @@ def generate_launch_description():
             DeclareLaunchArgument("gpio_chip_label", default_value="pinctrl-rp1"),
             DeclareLaunchArgument("gpio_chip_path", default_value=""),
             DeclareLaunchArgument("dynamic_joint_states_topic", default_value="/dynamic_joint_states"),
+            DeclareLaunchArgument("dynamic_joint_names", default_value=""),
             DeclareLaunchArgument("dynamic_joint_name", default_value="mab_power_stage"),
             DeclareLaunchArgument("dynamic_interface_name", default_value="bus_voltage"),
             DeclareLaunchArgument("control_module_topic", default_value=""),
@@ -39,6 +40,7 @@ def generate_launch_description():
                         "dynamic_joint_states_topic": LaunchConfiguration(
                             "dynamic_joint_states_topic"
                         ),
+                        "dynamic_joint_names": LaunchConfiguration("dynamic_joint_names"),
                         "dynamic_joint_name": LaunchConfiguration("dynamic_joint_name"),
                         "dynamic_interface_name": LaunchConfiguration(
                             "dynamic_interface_name"

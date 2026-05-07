@@ -22,7 +22,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 JOINT_NAMES = ["joint_1", "joint_2", "joint_3"]
 DEFAULT_CONTROLLER = "joint_trajectory_controller"
-HOME_DURATION_S = 10.0
+HOME_DURATION_S = 2.0
 
 
 def make_duration(seconds: float) -> Duration:
