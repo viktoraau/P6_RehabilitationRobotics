@@ -6,6 +6,7 @@ import rclpy
 from geometry_msgs.msg import QuaternionStamped, Vector3Stamped, WrenchStamped
 from rclpy.node import Node
 from tf2_ros import Buffer, TransformException, TransformListener
+from wrist_games_interfaces.srv import SetAdmittanceEnabled, SetStiffness, SetStiffnessScale
 
 
 class OrientationAdmittanceNode(Node):
@@ -42,12 +43,12 @@ class OrientationAdmittanceNode(Node):
                 2 * (stiffness[1] * inertia[1]) ** 0.5,
                 2 * (stiffness[2] * inertia[2]) ** 0.5,
             ]),
-            ('torque_deadband_nm', [0.1, 0.1, 0.1]),
+            ('torque_deadband_nm', [0.05, 0.05, 0.05]),
             ('wrench_torque_scale', [-1.0, 1.0, 1.0]),
             ('torque_lowpass_cutoff_hz', 20.0),
             ('force_to_torque_gain_nm_per_n', [0.00, 0.00, 0.00]),
-            ('max_angular_velocity', [1.5, 1.5, 1.5]),
-            ('max_angular_acceleration', [8.0, 8.0, 8.0]),
+            ('max_angular_velocity', [3.5, 3.5, 3.5]),
+            ('max_angular_acceleration', [2.5, 2.5, 2.5]),
             ('max_orientation_error_rad', [0.5, 1.2, 1.0]),
             ('reference_tip_frame', 'RU_1'),
             ('orientation_topic', '/desired_orientation'),
@@ -71,6 +72,7 @@ class OrientationAdmittanceNode(Node):
 
         self.inertia = self._read_vec_param('inertia', positive=True)
         self.stiffness = self._read_vec_param('stiffness')
+        self._base_stiffness = self.stiffness.copy()  # snapshot before transparent mode can zero it
         # Critical damping: D = 2 * sqrt(J * K) * zeta, zeta=1
         self.damping = 2.0 * np.sqrt(self.inertia * self.stiffness) * 1.0
 
@@ -122,6 +124,26 @@ class OrientationAdmittanceNode(Node):
 
         period = 1.0 / max(self.control_rate_hz, 1.0)
         self.control_timer = self.create_timer(period, self._control_tick)
+
+        # Service state
+        self._admittance_enabled = True
+        self._stiffness_scale = 1.0
+
+        self.create_service(
+            SetAdmittanceEnabled,
+            'admittance/set_enabled',
+            self._srv_set_enabled,
+        )
+        self.create_service(
+            SetStiffness,
+            'admittance/set_stiffness',
+            self._srv_set_stiffness,
+        )
+        self.create_service(
+            SetStiffnessScale,
+            'admittance/set_stiffness_scale',
+            self._srv_set_stiffness_scale,
+        )
 
         mode_str = 'TRANSPARENT (K=0, D=0)' if self.transparent_mode else 'normal'
         self.get_logger().info(
@@ -177,6 +199,16 @@ class OrientationAdmittanceNode(Node):
             return
         dt = float(np.clip(dt, self.min_dt_s, self.max_dt_s))
 
+        # When disabled, freeze the output and skip dynamics integration.
+        if not self._admittance_enabled:
+            self.omega = np.zeros(3, dtype=np.float64)
+            self.alpha = np.zeros(3, dtype=np.float64)
+            stamp_msg = now.to_msg()
+            self._publish_orientation(self.q_des, stamp_msg)
+            self._publish_vector(self.omega_pub, self.omega, stamp_msg)
+            self._publish_vector(self.alpha_pub, self.alpha, stamp_msg)
+            return
+
         # theta_err: rotation vector from fixed q_ref to current q_des
         # Stiffness spring always pulls q_des back toward the startup pose
         theta_err = self._quat_error_vec(self.q_ref, self.q_des)
@@ -218,7 +250,11 @@ class OrientationAdmittanceNode(Node):
 
         # Integrate q_des via quaternion kinematics, then publish alpha consistent
         # with the integrated state (theta_err_new), not the old theta_err.
+        # Also apply the at-limit mask to avg_omega so that on the very first
+        # zeroing step q_des does not bleed further past the orientation limit
+        # due to the non-zero self.omega carried from the previous tick.
         avg_omega = 0.5 * (self.omega + omega_new)
+        avg_omega = np.where(at_limit & (theta_err * avg_omega > 0.0), 0.0, avg_omega)
         self.q_des = self._integrate_quaternion(self.q_des, avg_omega, dt)
         theta_err_new = self._quat_error_vec(self.q_ref, self.q_des)
 
@@ -440,6 +476,58 @@ class OrientationAdmittanceNode(Node):
         q = np.array([x, y, z, w], dtype=np.float64)
         q /= np.linalg.norm(q)
         return q
+
+    # ── Service callbacks ──────────────────────────────────────────────────────
+
+    def _srv_set_enabled(
+        self,
+        request: SetAdmittanceEnabled.Request,
+        response: SetAdmittanceEnabled.Response,
+    ) -> SetAdmittanceEnabled.Response:
+        self._admittance_enabled = bool(request.enable)
+        state = 'enabled' if self._admittance_enabled else 'disabled'
+        self.get_logger().info(f'Admittance controller {state} via service.')
+        response.success = True
+        response.message = f'Admittance {state}.'
+        return response
+
+    def _srv_set_stiffness(
+        self,
+        request: SetStiffness.Request,
+        response: SetStiffness.Response,
+    ) -> SetStiffness.Response:
+        new_k = np.asarray(request.stiffness, dtype=np.float64)
+        if np.any(new_k < 0.0):
+            response.success = False
+            response.message = 'Stiffness values must be non-negative.'
+            return response
+        self.stiffness = new_k
+        self._base_stiffness = new_k.copy()
+        self.damping = 2.0 * np.sqrt(self.inertia * self.stiffness)
+        self.get_logger().info(f'Stiffness updated to {new_k.tolist()} via service.')
+        response.success = True
+        response.message = f'Stiffness set to {new_k.tolist()}.'
+        return response
+
+    def _srv_set_stiffness_scale(
+        self,
+        request: SetStiffnessScale.Request,
+        response: SetStiffnessScale.Response,
+    ) -> SetStiffnessScale.Response:
+        alpha = float(request.alpha)
+        if alpha < 0.0:
+            response.success = False
+            response.message = 'alpha must be non-negative.'
+            return response
+        self._stiffness_scale = alpha
+        self.stiffness = self._base_stiffness * alpha
+        self.damping = 2.0 * np.sqrt(self.inertia * self.stiffness)
+        self.get_logger().info(
+            f'Stiffness scale set to {alpha:.4f} → effective stiffness {self.stiffness.tolist()}.'
+        )
+        response.success = True
+        response.message = f'Stiffness scale set to {alpha:.4f}.'
+        return response
 
     def _warn_throttled(self, key: str, message: str, period_s: float = 1.0) -> None:
         now_s = self.get_clock().now().nanoseconds * 1.0e-9

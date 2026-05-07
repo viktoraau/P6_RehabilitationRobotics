@@ -13,6 +13,8 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 import PyKDL as kdl
+import math 
+
 
 import rclpy
 from rclpy.node import Node
@@ -199,6 +201,10 @@ class ComputedTorqueControllerKDL(Node):
         self.declare_parameter('gravity_scale', [1.0, 1.0, 1.0])
         self.declare_parameter('transparent_friction_scale', 1.0)
         self.declare_parameter('transparent_mode', False)
+        self.declare_parameter('position_limits_lower', [math.radians(-65), math.radians(-60), math.radians(-30)] ) #justér
+        self.declare_parameter('position_limits_upper', [math.radians(65), math.radians(60), math.radians(30)] ) #justér
+        self.declare_parameter('joint_limit_avoidance_gain', 5.0)
+        self.declare_parameter('joint_limit_buffer', 0.15)
 
         # ── Read parameters ───────────────────────────────────────────── #
         self.joint_names = list(
@@ -241,6 +247,14 @@ class ComputedTorqueControllerKDL(Node):
             self.get_parameter('transparent_friction_scale').value
         )
         self._transparent = bool(self.get_parameter('transparent_mode').value)
+        self._pos_limits_lower = self._vec_param('position_limits_lower')
+        self._pos_limits_upper = self._vec_param('position_limits_upper')
+        self._limit_avoidance_gain = float(
+            self.get_parameter('joint_limit_avoidance_gain').value
+        )
+        self._limit_buffer = float(
+            self.get_parameter('joint_limit_buffer').value
+        )
 
         # ── State ────────────────────────────────────────────────────── #
         self.q = np.zeros(self.dof)
@@ -420,7 +434,11 @@ class ComputedTorqueControllerKDL(Node):
             vel_err = np.zeros(self.dof)
             q_ddot_ref = np.zeros(self.dof)
         else:
-            pos_err = self.q_des - self.q
+            # Clamp desired position to limits so tracking law never pulls toward a limit.
+            q_des_clamped = np.clip(
+                self.q_des, self._pos_limits_lower, self._pos_limits_upper
+            )
+            pos_err = q_des_clamped - self.q
             vel_err = self.q_dot_des - self.q_dot
             q_ddot_ref = self.q_ddot_des + self._kd * vel_err + self._kp * pos_err
 
@@ -463,9 +481,10 @@ class ComputedTorqueControllerKDL(Node):
             self._coulomb_scale * self.q_dot
         )
 
-        # τ = M(q)·q̈_ref + C(q,q̇)·q̇ + G(q) + B·q̇ + Fc·tanh(α·q̇)
+        # τ = M(q)·q̈_ref + C(q,q̇)·q̇ + G(q) + B·q̇ + Fc·tanh(α·q̇) + τ_avoid
         # In transparent mode q̈_ref=0 so the M term drops out entirely.
         tau_raw = M @ q_ddot_ref + C + G + viscous + coulomb
+        tau_raw += self._joint_limit_avoidance_torque()
         self.get_logger().debug(
             f'M_diag={np.diag(M)}, G={G}, C={C}, '
             f'q_ddot_ref={q_ddot_ref}, tau_raw={tau_raw}'
@@ -473,6 +492,21 @@ class ComputedTorqueControllerKDL(Node):
         return tau_raw * self._torque_scale
 
     # ── Helpers ─────────────────────────────────────────────────────────── #
+
+    def _joint_limit_avoidance_torque(self) -> np.ndarray:
+        """Return a restoring torque that ramps up linearly inside the buffer zone."""
+        tau_avoid = np.zeros(self.dof)
+        if self._limit_avoidance_gain == 0.0:
+            return tau_avoid
+        buf = self._limit_buffer
+        for i in range(self.dof):
+            q_i = self.q[i]
+            lo, hi = self._pos_limits_lower[i], self._pos_limits_upper[i]
+            if q_i < lo + buf:
+                tau_avoid[i] = self._limit_avoidance_gain * (lo + buf - q_i)
+            elif q_i > hi - buf:
+                tau_avoid[i] = -self._limit_avoidance_gain * (q_i - (hi - buf))
+        return tau_avoid
 
     def _vec_param(self, name: str) -> np.ndarray:
         raw = list(

@@ -81,11 +81,9 @@ DEFAULT_CALIB_POSES = [
     # When j1=0, joint_2 rotates about an axis aligned with gravity so the
     # gravity vector in the sensor frame is identical to home — they add
     # measurement noise without new constraints and inflate the residual.
-    #
+    # #
     ("home",       [ 0.0,   0.0,   0.0],             4.0),
-    # j1 tilts the arm left/right → strong gX excitation
-    ("j1_pos",     [+_J1,   0.0,   0.0],             5.0),
-    ("j1_neg",     [-_J1,   0.0,   0.0],             5.0),
+
     # j3 tilts the sensor forward/backward → gX/gZ diversity at j1=0
     ("j3_pos",     [ 0.0,   0.0,  +_J3],             5.0),
     ("j3_neg",     [ 0.0,   0.0,  -_J3],             5.0),
@@ -95,7 +93,7 @@ DEFAULT_CALIB_POSES = [
     ("j1p_j2n",    [+_J1,  -_J2,   0.0],             6.0),
     ("j1n_j2p",    [-_J1,  +_J2,   0.0],             6.0),
 
-    #few random points within joint limits 
+    #few random points within joint limits
     ("random_1",   [ math.radians(20), math.radians(-15), math.radians(10)], 5.0),
     ("random_2",   [ math.radians(-30), math.radians(10), math.radians(-20)], 5.0),
     ("random_3",   [ math.radians(45), math.radians(-30), math.radians(15)], 5.0),
@@ -173,20 +171,20 @@ class FT300TrajectoryCalibNode(Node):
             "/robotiq_force_torque_sensor_broadcaster/wrench",
         )
         self.declare_parameter("calibrated_topic", "/ft300/wrench")
-        self.declare_parameter("frame_id",         "tool0")
+        self.declare_parameter("frame_id",         "RU_1")
         _default_calib = os.path.join(
             get_package_share_directory("ft300_ros2"),
             "config", "ft300_calibration.json",
         )
         self.declare_parameter("calibration_file", _default_calib)
-        self.declare_parameter("settle_time",      2.5)
-        self.declare_parameter("sample_time",      3.0)
+        self.declare_parameter("settle_time",      1.0)
+        self.declare_parameter("sample_time",      1.0)
         self.declare_parameter(
             "action_server",
             "/joint_trajectory_controller/follow_joint_trajectory",
         )
         self.declare_parameter("base_frame",   "base_link")
-        self.declare_parameter("sensor_frame", "tool0")
+        self.declare_parameter("sensor_frame", "RU_1")
         self.declare_parameter("lp_cutoff_hz", 10.0)   # published output only; 0.0 = passthrough
 
         self._raw_topic   = self.get_parameter("raw_topic").value

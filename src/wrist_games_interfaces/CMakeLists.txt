@@ -8,6 +8,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/StartCalibration.srv"
   "srv/StartGame.srv"
   "srv/StartAirplaneGame.srv"
+  "srv/SetStiffness.srv"
   "srv/SetStiffnessScale.srv"
   "srv/SetAdmittanceEnabled.srv"
 )
