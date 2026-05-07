@@ -100,6 +100,13 @@ def generate_launch_description():
         )
     )
 
+    computed_torque_controller = Node(
+        package="computed_torque_controller",
+        executable="controller_node",
+        name="controller_node",
+        output="screen",
+    )
+
     # ── 7. Computed torque controller (KDL) ───────────────────────────────
     ctc_params_file = os.path.join(
         get_package_share_directory("computed_torque_controller"),
@@ -118,7 +125,7 @@ def generate_launch_description():
             ctc_params_file,
             {"transparent_mode": False},
         ],
-    )
+   )
 
     return LaunchDescription([
         admittance_controller_node,
@@ -127,5 +134,6 @@ def generate_launch_description():
         orientation_ik_node,
         wrist_games_launch,
         foxglove_bridge_launch,
+        #computed_torque_controller
         computed_torque_controller_node,
     ])

@@ -24,6 +24,9 @@ class OrientationAdmittanceNode(Node):
     def __init__(self) -> None:
         super().__init__('orientation_admittance_controller')
 
+        inertia = [0.05, 0.05, 0.4]
+        stiffness = [0.25, 0.3, 0.50]
+
         for name, default in (
             ('input_topic', '/ft300/wrench'),
             ('base_frame', 'base_link'),
@@ -32,13 +35,18 @@ class OrientationAdmittanceNode(Node):
             ('wrench_timeout_s', 0.1),
             ('max_dt_s', 0.05),
             ('min_dt_s', 1.0e-4),
-            ('inertia', [0.03, 0.03, 0.03]),
-            ('damping', [0.08, 0.08, 0.08]),
-            ('stiffness', [0.250, 0.250, 0.250]),
+            ('inertia', inertia),
+            ('stiffness', stiffness),
+            ('damping', [
+                2 * (stiffness[0] * inertia[0]) ** 0.5,
+                2 * (stiffness[1] * inertia[1]) ** 0.5,
+                2 * (stiffness[2] * inertia[2]) ** 0.5,
+            ]),
             ('torque_deadband_nm', [0.1, 0.1, 0.1]),
+            ('wrench_torque_scale', [-1.0, 1.0, 1.0]),
             ('torque_lowpass_cutoff_hz', 20.0),
             ('force_to_torque_gain_nm_per_n', [0.00, 0.00, 0.00]),
-            ('max_angular_velocity', [1.0, 1.0, 1.0]),
+            ('max_angular_velocity', [1.5, 1.5, 1.5]),
             ('max_angular_acceleration', [8.0, 8.0, 8.0]),
             ('max_orientation_error_rad', [0.5, 1.2, 1.0]),
             ('reference_tip_frame', 'RU_1'),
@@ -71,6 +79,7 @@ class OrientationAdmittanceNode(Node):
             self.damping = np.zeros(3, dtype=np.float64)
             self.stiffness = np.zeros(3, dtype=np.float64)
         self.torque_deadband_nm = self._read_vec_param('torque_deadband_nm')
+        self.wrench_torque_scale = self._read_vec_param('wrench_torque_scale')
         self.max_angular_velocity = self._read_vec_param('max_angular_velocity', positive=True)
         self.max_angular_acceleration = self._read_vec_param('max_angular_acceleration', positive=True)
         self.max_orientation_error_rad = self._read_vec_param('max_orientation_error_rad', positive=True)
@@ -138,7 +147,7 @@ class OrientationAdmittanceNode(Node):
         self.latest_torque_sensor = np.asarray(
             (msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z),
             dtype=np.float64,
-        )
+        ) * self.wrench_torque_scale
         self.latest_wrench_frame = msg.header.frame_id or self.default_wrench_frame
         self.last_wrench_rx_time = self.get_clock().now()
 
@@ -175,6 +184,11 @@ class OrientationAdmittanceNode(Node):
         torque_base = self._get_torque_in_base(now)
         torque_base = self._apply_deadband(torque_base)
         self.filtered_torque_base = self._lowpass_filter(self.filtered_torque_base, torque_base, dt)
+
+        # tuning
+        #mask = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+        #self.filtered_torque_base = self.filtered_torque_base * mask
+        #tuning ends
 
         # Tustin / trapezoidal integration of  I*omega_dot + D*omega + K*theta = tau.
         # alpha_now is recomputed from the current state at every tick — caching

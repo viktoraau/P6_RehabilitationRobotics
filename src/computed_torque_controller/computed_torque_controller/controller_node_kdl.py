@@ -195,6 +195,7 @@ class ComputedTorqueControllerKDL(Node):
         self.declare_parameter('motor_inertia', [0.0, 0.0, 0.0])
         self.declare_parameter('use_motor_inertia', True)
         self.declare_parameter('torque_scale', [1.0, 1.0, 1.0])
+        self.declare_parameter('torque_limits', [20.0, 8.0, 8.0]) #justér
         self.declare_parameter('gravity_scale', [1.0, 1.0, 1.0])
         self.declare_parameter('transparent_friction_scale', 1.0)
         self.declare_parameter('transparent_mode', False)
@@ -234,6 +235,7 @@ class ComputedTorqueControllerKDL(Node):
             self.get_parameter('use_motor_inertia').value
         )
         self._torque_scale = self._vec_param('torque_scale')
+        self._torque_limits = np.abs(self._vec_param('torque_limits'))
         self._gravity_scale = self._vec_param('gravity_scale')
         self._transparent_friction_scale = float(
             self.get_parameter('transparent_friction_scale').value
@@ -392,6 +394,7 @@ class ComputedTorqueControllerKDL(Node):
         try:
             tau = self._compute_torque()
             tau = np.array([-tau[0], tau[1], tau[2]])  # joint_1: URDF axis flipped to -Y, now matches hardware — no negate. joint_3: URDF axis flipped from -X to +X, KDL sign inverted — negate to restore hardware convention.
+            tau = np.clip(tau, -self._torque_limits, self._torque_limits)
         except Exception as exc:  # noqa: BLE001
             self.get_logger().error(
                 f'_compute_torque raised an exception: {exc}',

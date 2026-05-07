@@ -27,8 +27,8 @@ computed_torque_controller_kdl:
 
     # ── Controller gains (set to 0 – tune before running) ────────────────────
     # Format: [joint_1, joint_2, joint_3]
-    kp: [10.0, 10.0, 10.0]
-    kd: [10.0, 10.0, 10.0]
+    kp: [12.0, 12.0, 12.0]
+    kd: [6.0, 6.0, 6.0]
 
     # ── Friction model ───────────────────────────────────────────────────────
     # Viscous friction coefficients B_i  (τ_visc = B_i · q̇_i)

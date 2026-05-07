@@ -359,7 +359,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument("bus", default_value="USB"),
-        DeclareLaunchArgument("data_rate", default_value="5M"),
+        DeclareLaunchArgument("data_rate", default_value="1M"),
         DeclareLaunchArgument("use_pds", default_value="true"),
         DeclareLaunchArgument("use_regular_can_frames", default_value="false"),
         DeclareLaunchArgument("pds_id", default_value="100"),
@@ -386,7 +386,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "pid_tuning_file",
             default_value=installed_share + "/config/pid_tuning.yaml"),
-        DeclareLaunchArgument("active_controller", default_value="trajectory"),
+        DeclareLaunchArgument("active_controller", default_value="effort"),
         DeclareLaunchArgument("spawn_inactive_controllers", default_value="true"),
         DeclareLaunchArgument("controller_spawn_initial_delay_sec", default_value="3.0"),
         DeclareLaunchArgument("controller_spawn_stagger_sec", default_value="1.0"),

@@ -26,7 +26,7 @@ setup(
         'console_scripts': [
             'admittance_controller = Admittance_controller.admittance_controller_node:main',
             'interactive_force_tester = Admittance_controller.forces:main',
-            'command_publisher = Admittance_controller.Command_pub:main',
+            'command_publisher = Admittance_controller.traj_to_joint_state:main',
             
         ],
     },
