@@ -1,0 +1,42 @@
+bode_test_node:
+  ros__parameters:
+
+    # ── Test mode ──────────────────────────────────────────────────────────────
+    # "ctc" injects JointTrajectory directly into the computed torque controller.
+    test_mode: ctc
+
+    # Which joint to excite: 0=joint_1 (FE), 1=joint_2 (UD), 2=joint_3 (RU)
+    joint_index: 0
+
+    # Sine wave amplitude in radians.
+    # Must be < 70% of joint limit:
+    #   joint_1: max ~0.79 rad (45 deg), joint_2: max ~0.73 rad, joint_3: max ~0.37 rad
+    amplitude: 0.10
+
+    # ── Frequency sweep ────────────────────────────────────────────────────────
+    freq_start_hz: 0.1
+    freq_end_hz:   5.0
+    n_frequencies: 15     # log-spaced points
+
+    # Cycles to publish before recording (let transients die out)
+    settle_cycles: 3
+
+    # Cycles to record for analysis
+    measure_cycles: 5
+
+    # ── Output ─────────────────────────────────────────────────────────────────
+    output_csv:  ~/bode_ctc_joint0.csv
+    plot_output: ~/bode_ctc_joint0.png
+
+    # ── Topics (must match controller_kdl.yaml) ────────────────────────────────
+    trajectory_topic: /joint_trajectory_controller/joint_trajectory
+    joint_state_topic: /joint_states
+
+    # ── Timing ─────────────────────────────────────────────────────────────────
+    control_rate_hz: 100.0
+
+    # Homing: command zero and wait up to this long before starting sweep
+    homing_duration_s: 3.0
+
+    # Joints are considered "homed" when |q| < this threshold (rad)
+    homing_threshold_rad: 0.05

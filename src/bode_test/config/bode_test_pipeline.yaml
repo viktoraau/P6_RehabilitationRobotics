@@ -1,0 +1,43 @@
+bode_test_node:
+  ros__parameters:
+
+    # ── Test mode ──────────────────────────────────────────────────────────────
+    # "full_pipeline" injects WrenchStamped torques into the admittance controller
+    # and measures the end-to-end response through admittance → IK → CTC.
+    # NOTE: do NOT run the real FT sensor during this test — the node publishes
+    # synthetic wrenches on /ft300/wrench (or wrench_topic below).
+    test_mode: full_pipeline
+
+    # Which joint/axis to excite: 0=joint_1 (FE, torque Y), 1=joint_2 (UD, torque Z),
+    # 2=joint_3 (RU, torque X)
+    joint_index: 0
+
+    # Sine wave amplitude in Newton-metres.
+    # The admittance controller's deadband is 0.05 Nm; keep amplitude well above it.
+    # Admittance stiffness limits orientation; max amplitude around 0.5–1.0 Nm is safe.
+    amplitude: 0.5
+
+    # ── Frequency sweep ────────────────────────────────────────────────────────
+    # Upper limit is constrained by the admittance low-pass filter (~20 Hz).
+    # Practical range is 0.1–5.0 Hz for this pipeline.
+    freq_start_hz: 0.1
+    freq_end_hz:   3.0
+    n_frequencies: 12
+
+    settle_cycles: 3
+    measure_cycles: 5
+
+    # ── Output ─────────────────────────────────────────────────────────────────
+    output_csv:  ~/bode_pipeline_joint0.csv
+    plot_output: ~/bode_pipeline_joint0.png
+
+    # ── Topics ─────────────────────────────────────────────────────────────────
+    wrench_topic:      /ft300/wrench
+    joint_state_topic: /joint_states
+
+    # ── Timing ─────────────────────────────────────────────────────────────────
+    control_rate_hz: 100.0
+
+    # Homing: publish zero wrench and wait for stiffness spring to pull arm to zero
+    homing_duration_s: 5.0
+    homing_threshold_rad: 0.08

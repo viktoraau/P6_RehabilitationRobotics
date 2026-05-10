@@ -46,7 +46,9 @@ class OrientationAdmittanceNode(Node):
             ('torque_deadband_nm', [0.05, 0.05, 0.05]),
             ('wrench_torque_scale', [-1.0, 1.0, 1.0]),
             ('torque_lowpass_cutoff_hz', 20.0),
-            ('force_to_torque_gain_nm_per_n', [0.00, 0.00, 0.00]),
+            ('moment_arm', [0.0, 0.0, 0.0]),
+            ('force_to_torque_gain', 1.0),
+            ('force_deadband_n', [0.0, 0.0, 0.0]),
             ('max_angular_velocity', [3.5, 3.5, 3.5]),
             ('max_angular_acceleration', [2.5, 2.5, 2.5]),
             ('max_orientation_error_rad', [0.5, 1.2, 1.0]),
@@ -86,7 +88,9 @@ class OrientationAdmittanceNode(Node):
         self.max_angular_acceleration = self._read_vec_param('max_angular_acceleration', positive=True)
         self.max_orientation_error_rad = self._read_vec_param('max_orientation_error_rad', positive=True)
         self.torque_lowpass_cutoff_hz = float(self.get_parameter('torque_lowpass_cutoff_hz').value)
-        self.force_to_torque_gain_nm_per_n = self._read_vec_param('force_to_torque_gain_nm_per_n')
+        self.moment_arm = self._read_vec_param('moment_arm')
+        self.force_to_torque_gain = float(self.get_parameter('force_to_torque_gain').value)
+        self.force_deadband_n = self._read_vec_param('force_deadband_n')
 
         self.reference_tip_frame = str(self.get_parameter('reference_tip_frame').value)
 
@@ -304,10 +308,9 @@ class OrientationAdmittanceNode(Node):
         # Frame matches base — use the torque directly.
         if self.latest_wrench_frame == self.base_frame:
             self.last_good_wrench_time = self.last_wrench_rx_time
-            return (
-                self.latest_torque_sensor.copy()
-                + self.force_to_torque_gain_nm_per_n * self.latest_force_sensor
-            )
+            force = np.where(np.abs(self.latest_force_sensor) < self.force_deadband_n, 0.0, self.latest_force_sensor)
+            tau_extra = self.force_to_torque_gain * np.cross(self.moment_arm, force)
+            return self.latest_torque_sensor.copy() + tau_extra
 
         # Otherwise rotate into base via TF.
         try:
@@ -320,10 +323,13 @@ class OrientationAdmittanceNode(Node):
             rotation_matrix = self._quat_xyzw_to_matrix(
                 np.array([rot.x, rot.y, rot.z, rot.w], dtype=np.float64)
             )
-            force_base = rotation_matrix @ self.latest_force_sensor
+            force_sensor = np.where(np.abs(self.latest_force_sensor) < self.force_deadband_n, 0.0, self.latest_force_sensor)
+            force_base = rotation_matrix @ force_sensor
             torque_base = rotation_matrix @ self.latest_torque_sensor
             self.last_good_wrench_time = self.last_wrench_rx_time
-            return torque_base + self.force_to_torque_gain_nm_per_n * force_base
+            r_base = rotation_matrix @ self.moment_arm
+            tau_extra = self.force_to_torque_gain * np.cross(r_base, force_base)
+            return torque_base + tau_extra
         except TransformException as exc:
             self._warn_throttled('tf_lookup', f'TF lookup failed: {str(exc)}')
             # If we previously had a usable wrench within the timeout window,

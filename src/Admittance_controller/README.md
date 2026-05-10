@@ -32,7 +32,7 @@ $$R_{des} = R_{ref} \cdot \text{Exp}(\theta)$$
   - `/desired_angular_acceleration` — `Vector3Stamped`
 - Transforms the wrench into the base frame using TF2
 - Applies a torque deadband and low-pass filter to the wrench
-- Forces are converted to an equivalent torque via `force_to_torque_gain_nm_per_n`
+- Forces are converted to an equivalent torque via a cross-product lever arm: `τ_extra = gain * (r × F)`
 - Clamps output to configurable max velocity/acceleration/orientation-error limits
 
 ```bash
@@ -58,7 +58,9 @@ Converts a `JointTrajectory` message to a `JointState` for bridging/debugging.
 | `stiffness` | `[0.25, 0.25, 0.25]` | Stiffness [N·m/rad] per axis |
 | `torque_deadband_nm` | `[0.01, 0.01, 0.01]` | Ignore torques below this |
 | `torque_lowpass_cutoff_hz` | `20.0` | Low-pass filter cutoff |
-| `force_to_torque_gain_nm_per_n` | `[0.01, 0.01, 0.01]` | How much force contributes to torque |
+| `moment_arm` | `[0.0, 0.0, 0.0]` | Offset from sensor origin to grip point in sensor frame [m]; used as lever arm for `r × F` |
+| `force_to_torque_gain` | `1.0` | Scalar to scale the `r × F` torque contribution; tune down toward 0 if too strong |
+| `force_deadband_n` | `[0.0, 0.0, 0.0]` | Forces below this threshold (per axis, sensor frame) are zeroed before computing `r × F` |
 | `max_angular_velocity` | `[1.0, 1.0, 1.0]` | Clamping [rad/s] |
 | `max_orientation_error_rad` | `[0.5, 1.2, 1.0]` | Max allowed deviation from reference |
 | `initialize_reference_from_tf` | `false` | Use current TF pose as reference on startup |
