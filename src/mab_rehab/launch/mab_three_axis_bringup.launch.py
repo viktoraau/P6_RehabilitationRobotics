@@ -94,6 +94,7 @@ def _build_launch_nodes(context, controllers_file, installed_share):
         LaunchConfiguration("controller_update_rate_hz").perform(context))
     controller_thread_priority = int(
         LaunchConfiguration("controller_thread_priority").perform(context))
+    controller_cpu_affinity = LaunchConfiguration("controller_cpu_affinity").perform(context).strip()
     controller_spawn_initial_delay_sec = float(
         LaunchConfiguration("controller_spawn_initial_delay_sec").perform(context))
     controller_spawn_stagger_sec = float(
@@ -218,6 +219,7 @@ def _build_launch_nodes(context, controllers_file, installed_share):
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
+        prefix=[f"taskset -c {controller_cpu_affinity}"] if controller_cpu_affinity else [],
         parameters=[
             robot_description,
             controllers_file,
@@ -376,7 +378,9 @@ def generate_launch_description():
             "md_config_3", default_value=installed_share + "/config/motors/joint_3.cfg"),
 
         DeclareLaunchArgument("controller_update_rate_hz", default_value="100"),
-        DeclareLaunchArgument("controller_thread_priority", default_value="50"),
+        DeclareLaunchArgument("controller_thread_priority", default_value="90"),
+        DeclareLaunchArgument("controller_cpu_affinity", default_value="",
+                              description="CPU cores for ros2_control_node, e.g. '10,11'. Empty = no pinning."),
         DeclareLaunchArgument(
             "startup_reference_file",
             default_value=installed_share + "/config/startup_reference.yaml"),
@@ -386,7 +390,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "pid_tuning_file",
             default_value=installed_share + "/config/pid_tuning.yaml"),
-        DeclareLaunchArgument("active_controller", default_value="effort"),
+        DeclareLaunchArgument("active_controller", default_value="trajectory",),
         DeclareLaunchArgument("spawn_inactive_controllers", default_value="true"),
         DeclareLaunchArgument("controller_spawn_initial_delay_sec", default_value="3.0"),
         DeclareLaunchArgument("controller_spawn_stagger_sec", default_value="1.0"),

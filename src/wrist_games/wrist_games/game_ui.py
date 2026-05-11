@@ -162,8 +162,8 @@ def run(angles_fn, kb_update_fn, patient_id, ranges, num_targets: int = 8) -> di
         ru  = ang[JOINT_RU]
         ps  = ang[JOINT_PS]
 
-        cx = _map(ru, ranges[JOINT_RU][0], ranges[JOINT_RU][1], MARGIN_X, W - MARGIN_X)
-        cy = _map(fe, ranges[JOINT_FE][1], ranges[JOINT_FE][0], MARGIN_Y, H - 40)
+        cx = _map(fe, ranges[JOINT_FE][0], ranges[JOINT_FE][1], MARGIN_X, W - MARGIN_X)
+        cy = _map(ru, ranges[JOINT_RU][1], ranges[JOINT_RU][0], MARGIN_Y, H - 40)
 
         tx, ty, tps = gs["target"]
         spatial_ok  = math.hypot(cx - tx, cy - ty) < TARGET_RADIUS

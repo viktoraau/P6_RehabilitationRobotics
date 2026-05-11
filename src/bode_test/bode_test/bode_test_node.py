@@ -56,7 +56,7 @@ class BodeTestNode(Node):
         # ── Parameters ────────────────────────────────────────────────────────
         self.declare_parameter('test_mode', 'ctc')
         self.declare_parameter('joint_index', 0)
-        self.declare_parameter('amplitude', 0.10)
+        self.declare_parameter('amplitude', 0.70)
         self.declare_parameter('freq_start_hz', 0.1)
         self.declare_parameter('freq_end_hz', 5.0)
         self.declare_parameter('n_frequencies', 15)
@@ -216,7 +216,9 @@ class BodeTestNode(Node):
                     f'for {self.JOINT_NAMES[self._joint_idx]}. '
                     'Reduce amplitude and restart.'
                 )
-                raise SystemExit(1)
+                self._state = _State.DONE
+                rclpy.shutdown()
+                return
 
         self.get_logger().info(
             f'Pre-flight OK. Homing to zero (timeout={self._homing_duration:.1f} s) …'
@@ -287,7 +289,9 @@ class BodeTestNode(Node):
     def _publish_wrench(self, tx: float, ty: float, tz: float) -> None:
         msg = WrenchStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'RU_1'
+        # Use base_link frame so the admittance controller uses the torque
+        # directly without a TF lookup that may fail at startup.
+        msg.header.frame_id = 'base_link'
         msg.wrench.torque.x = tx
         msg.wrench.torque.y = ty
         msg.wrench.torque.z = tz

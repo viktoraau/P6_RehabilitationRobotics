@@ -23,11 +23,11 @@ def generate_launch_description():
     config = os.path.join(pkg, 'config', 'bode_test_ctc.yaml')
 
     return LaunchDescription([
-        DeclareLaunchArgument('joint_index', default_value='0',
+        DeclareLaunchArgument('joint_index', default_value='1',
                               description='Joint to excite: 0=joint_1, 1=joint_2, 2=joint_3'),
-        DeclareLaunchArgument('amplitude', default_value='0.10',
+        DeclareLaunchArgument('amplitude', default_value='0.7',
                               description='Sine amplitude in radians'),
-        DeclareLaunchArgument('freq_start_hz', default_value='0.1'),
+        DeclareLaunchArgument('freq_start_hz', default_value='1.0'),
         DeclareLaunchArgument('freq_end_hz', default_value='5.0'),
         DeclareLaunchArgument('n_frequencies', default_value='15'),
         DeclareLaunchArgument('output_csv', default_value='~/bode_ctc.csv'),

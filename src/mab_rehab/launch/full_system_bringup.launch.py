@@ -37,9 +37,20 @@ def generate_launch_description():
     #       KDL chain. The admittance controller also needs TF to initialise
     #       its reference orientation. Skip with start_rsp:=false if your
     #       hardware bringup already provides robot_state_publisher.
+    start_rsp = LaunchConfiguration("start_rsp")
+
     urdf_share = get_package_share_directory("complete_system_urdf_description")
     xacro_file = os.path.join(urdf_share, "urdf", "complete_system_urdf.xacro")
     robot_urdf = xacro.process_file(xacro_file).toxml()
+
+    robot_state_publisher_node = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        name="robot_state_publisher",
+        output="screen",
+        parameters=[{"robot_description": robot_urdf}],
+        condition=IfCondition(start_rsp),
+    )
 
 
 
@@ -100,13 +111,6 @@ def generate_launch_description():
         )
     )
 
-    computed_torque_controller = Node(
-        package="computed_torque_controller",
-        executable="controller_node",
-        name="controller_node",
-        output="screen",
-    )
-
     # ── 7. Computed torque controller (KDL) ───────────────────────────────
     ctc_params_file = os.path.join(
         get_package_share_directory("computed_torque_controller"),
@@ -128,12 +132,20 @@ def generate_launch_description():
    )
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            "start_rsp",
+            default_value="true",
+            description=(
+                "Launch robot_state_publisher here. "
+                "Set false if mab_three_axis_bringup already provides it."
+            ),
+        ),
+        robot_state_publisher_node,
         admittance_controller_node,
         ft_sensor_launch,
         ft300_calibration_node,
         orientation_ik_node,
         wrist_games_launch,
         foxglove_bridge_launch,
-        #computed_torque_controller
         computed_torque_controller_node,
     ])

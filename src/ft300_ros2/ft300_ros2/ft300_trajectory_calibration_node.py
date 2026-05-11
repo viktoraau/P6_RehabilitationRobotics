@@ -181,7 +181,7 @@ class FT300TrajectoryCalibNode(Node):
         self.declare_parameter("sample_time",      1.0)
         self.declare_parameter(
             "action_server",
-            "/joint_trajectory_controller/follow_joint_trajectory",
+            "/joint_trajectory_controller/follow_joint_trajectory", #/joint_trajectory_controller/joint_trajectory
         )
         self.declare_parameter("base_frame",   "base_link")
         self.declare_parameter("sensor_frame", "RU_1")

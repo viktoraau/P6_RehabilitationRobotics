@@ -94,5 +94,5 @@ After editing, use the **installed** path (or the source path) with `--params-fi
 
 
 ros2 run computed_torque_controller controller_node_kdl \
-  --ros-args --params-file /home/a/Downloads/src/src/computed_torque_controller/config/controller_kdl.yaml \
+  --ros-args --params-file /home/a/wrist_games_data/pr/P6_RehabilitationRobotics/src/computed_torque_controller/config/controller_kdl.yaml \
   -p transparent_mode:=true

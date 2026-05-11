@@ -15,7 +15,7 @@ bode_test_node:
     # Sine wave amplitude in Newton-metres.
     # The admittance controller's deadband is 0.05 Nm; keep amplitude well above it.
     # Admittance stiffness limits orientation; max amplitude around 0.5–1.0 Nm is safe.
-    amplitude: 0.5
+    amplitude: 0.7
 
     # ── Frequency sweep ────────────────────────────────────────────────────────
     # Upper limit is constrained by the admittance low-pass filter (~20 Hz).
@@ -24,8 +24,8 @@ bode_test_node:
     freq_end_hz:   3.0
     n_frequencies: 12
 
-    settle_cycles: 3
-    measure_cycles: 5
+    settle_cycles: 1
+    measure_cycles: 1
 
     # ── Output ─────────────────────────────────────────────────────────────────
     output_csv:  ~/bode_pipeline_joint0.csv

@@ -25,8 +25,8 @@ class OrientationAdmittanceNode(Node):
     def __init__(self) -> None:
         super().__init__('orientation_admittance_controller')
 
-        inertia = [0.05, 0.05, 0.4]
-        stiffness = [0.25, 0.3, 0.50]
+        inertia = [0.005, 0.05, 0.05]
+        stiffness = [0.001, 0.01, 0.1]
 
         for name, default in (
             ('input_topic', '/ft300/wrench'),
@@ -44,14 +44,14 @@ class OrientationAdmittanceNode(Node):
                 2 * (stiffness[2] * inertia[2]) ** 0.5,
             ]),
             ('torque_deadband_nm', [0.05, 0.05, 0.05]),
-            ('wrench_torque_scale', [-1.0, 1.0, 1.0]),
+            ('wrench_torque_scale', [1.0, -1.0, 1.0]),
             ('torque_lowpass_cutoff_hz', 20.0),
-            ('moment_arm', [0.0, 0.0, 0.0]),
+            ('moment_arm', [0.08, 0.08, 0.08]),
             ('force_to_torque_gain', 1.0),
-            ('force_deadband_n', [0.0, 0.0, 0.0]),
+            ('force_deadband_n', [0.5, 0.5, 0.5]),
             ('max_angular_velocity', [3.5, 3.5, 3.5]),
-            ('max_angular_acceleration', [2.5, 2.5, 2.5]),
-            ('max_orientation_error_rad', [0.5, 1.2, 1.0]),
+            ('max_angular_acceleration', [5.5, 5.5, 5.5]),
+            ('max_orientation_error_rad', [1.5, 1.5, 1.5]),
             ('reference_tip_frame', 'RU_1'),
             ('orientation_topic', '/desired_orientation'),
             ('angular_velocity_topic', '/desired_angular_velocity'),

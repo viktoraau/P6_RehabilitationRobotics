@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>wrist_games_ros2</name>
+  <version>0.1.0</version>
+  <description>Wrist-controlled ROS2 mini-games with score and sound feedback.</description>
+  <maintainer email="devnull@example.com">OpenWrist Team</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
+
+  <exec_depend>python3-pygame</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

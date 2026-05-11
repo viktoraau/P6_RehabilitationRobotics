@@ -84,20 +84,27 @@ def _urdf_inertia_to_kdl(inertial_el):
     return kdl.RigidBodyInertia(m, oc, Ic)
 
 
-def _chain_from_urdf_string(urdf_string, base_link, tip_link):
+def _chain_from_urdf_string(urdf_string, base_link, tip_link, logger=None):
     """Build a KDL Chain from a URDF XML string.
 
     Follows the same convention as kdl_parser (C++):
     for each revolute joint with URDF origin (p, R), the KDL Joint is
     Joint(name, p, R*axis, RotAxis) with f_tip = Frame::Identity().
     """
+    def _log(msg):
+        if logger is not None:
+            logger.info(msg)
+
     root = ET.fromstring(urdf_string)
 
     # link name → RigidBodyInertia
     link_inertia: dict[str, kdl.RigidBodyInertia] = {}
     for link_el in root.iter('link'):
         name = link_el.get('name', '')
-        link_inertia[name] = _urdf_inertia_to_kdl(link_el.find('inertial'))
+        inertia = _urdf_inertia_to_kdl(link_el.find('inertial'))
+        link_inertia[name] = inertia
+        if inertia.getMass() > 0:
+            _log(f'[URDF] link={name!r}  mass={inertia.getMass():.4f}  cog={inertia.getCOG()}')
 
     # child link → (parent_link, joint_name, joint_type, xyz, rpy, axis)
     child_to_parent: dict[str, tuple] = {}
@@ -159,6 +166,12 @@ def _chain_from_urdf_string(urdf_string, base_link, tip_link):
             kdl_joint = kdl.Joint(jname, kdl.Joint.Fixed)
 
         I = link_inertia.get(child_lk, kdl.RigidBodyInertia())
+        _log(f'[CHAIN] joint={jname!r}  child={child_lk!r}  mass={I.getMass():.4f}')
+        if I.getMass() < 1e-9:
+            _log(
+                f'[CHAIN] WARNING: link {child_lk!r} has zero mass – '
+                'check <inertial> in the URDF for this link'
+            )
         chain.addSegment(
             kdl.Segment(jname, kdl_joint, kdl.Frame.Identity(), I)
         )
@@ -189,22 +202,24 @@ class ComputedTorqueControllerKDL(Node):
         self.declare_parameter('tip_link', 'RU_1')
         self.declare_parameter('gravity', [0.0, 0.0, -9.81])
         self.declare_parameter('control_rate_hz', 100.0)
-        self.declare_parameter('kp', [0.0, 0.0, 0.0])
-        self.declare_parameter('kd', [0.0, 0.0, 0.0])
+        self.declare_parameter('kp', [12.0, 12.0, 12.0])
+        self.declare_parameter('kd', [6.0, 6.0, 6.0])
         self.declare_parameter('viscous_friction', [0.0, 0.0, 0.0])
         self.declare_parameter('coulomb_friction', [0.0, 0.0, 0.0])
         self.declare_parameter('coulomb_tanh_scale', 10.0)
         self.declare_parameter('motor_inertia', [0.0, 0.0, 0.0])
         self.declare_parameter('use_motor_inertia', True)
         self.declare_parameter('torque_scale', [1.0, 1.0, 1.0])
-        self.declare_parameter('torque_limits', [20.0, 8.0, 8.0]) #justér
+        self.declare_parameter('torque_limits', [50.0, 10.0, 10.0]) #justér
         self.declare_parameter('gravity_scale', [1.0, 1.0, 1.0])
         self.declare_parameter('transparent_friction_scale', 1.0)
         self.declare_parameter('transparent_mode', False)
         self.declare_parameter('position_limits_lower', [math.radians(-65), math.radians(-60), math.radians(-30)] ) #justér
         self.declare_parameter('position_limits_upper', [math.radians(65), math.radians(60), math.radians(30)] ) #justér
-        self.declare_parameter('joint_limit_avoidance_gain', 5.0)
-        self.declare_parameter('joint_limit_buffer', 0.15)
+        self.declare_parameter('joint_limit_avoidance_gain', 0.0)
+        self.declare_parameter('joint_limit_buffer', 0.0)
+        # 0.0 = no filtering; positive value = cutoff frequency in Hz
+        self.declare_parameter('velocity_filter_cutoff_hz', 0.0)
 
         # ── Read parameters ───────────────────────────────────────────── #
         self.joint_names = list(
@@ -255,6 +270,13 @@ class ComputedTorqueControllerKDL(Node):
         self._limit_buffer = float(
             self.get_parameter('joint_limit_buffer').value
         )
+        cutoff_hz = float(self.get_parameter('velocity_filter_cutoff_hz').value)
+        if cutoff_hz > 0.0:
+            self._vel_filter_alpha = math.exp(
+                -2.0 * math.pi * cutoff_hz / self._ctrl_rate
+            )
+        else:
+            self._vel_filter_alpha = 0.0  # disabled
 
         # ── State ────────────────────────────────────────────────────── #
         self.q = np.zeros(self.dof)
@@ -269,6 +291,7 @@ class ComputedTorqueControllerKDL(Node):
         self.last_tau = np.zeros(self.dof)
 
         # KDL solver – populated once robot_description arrives
+        self._kdl_chain: kdl.Chain | None = None
         self._dyn_param: kdl.ChainDynParam | None = None
 
         # ── Topics ───────────────────────────────────────────────────── #
@@ -326,9 +349,15 @@ class ComputedTorqueControllerKDL(Node):
         if self._dyn_param is not None:
             return
 
+        self.get_logger().info(
+            f'[robot_description] received {len(msg.data)} chars; '
+            f'building KDL chain {self._base_link!r} → {self._tip_link!r}'
+        )
+
         try:
             chain = _chain_from_urdf_string(
-                msg.data, self._base_link, self._tip_link
+                msg.data, self._base_link, self._tip_link,
+                logger=self.get_logger(),
             )
         except Exception as exc:
             self.get_logger().error(f'Failed to build KDL chain: {exc}')
@@ -343,10 +372,39 @@ class ComputedTorqueControllerKDL(Node):
             )
             return
 
-        self._dyn_param = kdl.ChainDynParam(chain, self._kdl_gravity)
+        # Sanity-check: log every segment mass so a zero-mass URDF is obvious.
+        total_mass = 0.0
+        for i in range(chain.getNrOfSegments()):
+            seg = chain.getSegment(i)
+            m = seg.getInertia().getMass()
+            total_mass += m
+            self.get_logger().info(
+                f'  [CHAIN verify] segment[{i}] {seg.getName()!r}: mass={m:.4f} kg'
+            )
+        if total_mass < 1e-6:
+            self.get_logger().error(
+                'KDL chain total mass is zero! '
+                'The URDF published on /robot_description has no <inertial> '
+                'data for the chain links – G, C, M will all be zero. '
+                'Check which robot_description is being published.'
+            )
+            return
+
+        grav_mag = (self._kdl_gravity[0]**2 + self._kdl_gravity[1]**2
+                    + self._kdl_gravity[2]**2) ** 0.5
+        self.get_logger().info(
+            f'Gravity vector: [{self._kdl_gravity[0]:.3f}, '
+            f'{self._kdl_gravity[1]:.3f}, {self._kdl_gravity[2]:.3f}] '
+            f'(|g|={grav_mag:.3f} m/s²)'
+        )
+
+        # Keep the chain alive – ChainDynParam's internal solvers hold a
+        # reference to the chain and return error -3 if it is GC'd.
+        self._kdl_chain = chain
+        self._dyn_param = kdl.ChainDynParam(self._kdl_chain, self._kdl_gravity)
         self.get_logger().info(
             f'KDL dynamics ready: {self._base_link} -> {self._tip_link} '
-            f'({n_joints} joints).'
+            f'({n_joints} joints, total_mass={total_mass:.3f} kg).'
         )
 
     # ── ROS callbacks ─────────────────────────────────────────────────── #
@@ -357,7 +415,11 @@ class ComputedTorqueControllerKDL(Node):
         if q is None or q_dot is None:
             return
         self.q = q
-        self.q_dot = q_dot
+        alpha = self._vel_filter_alpha
+        if alpha == 0.0 or not self.have_actual:
+            self.q_dot = q_dot
+        else:
+            self.q_dot = alpha * self.q_dot + (1.0 - alpha) * q_dot
         self.have_actual = True
         self._log_ready_once()
 
@@ -407,7 +469,7 @@ class ComputedTorqueControllerKDL(Node):
             return
         try:
             tau = self._compute_torque()
-            tau = np.array([-tau[0], tau[1], tau[2]])  # joint_1: URDF axis flipped to -Y, now matches hardware — no negate. joint_3: URDF axis flipped from -X to +X, KDL sign inverted — negate to restore hardware convention.
+            tau = np.array([tau[0], tau[1], tau[2]])  # joint_1: URDF axis flipped to -Y, now matches hardware — no negate. joint_3: URDF axis flipped from -X to +X, KDL sign inverted — negate to restore hardware convention.
             tau = np.clip(tau, -self._torque_limits, self._torque_limits)
         except Exception as exc:  # noqa: BLE001
             self.get_logger().error(
@@ -454,9 +516,15 @@ class ComputedTorqueControllerKDL(Node):
         C_kdl = kdl.JntArray(self.dof)   # C(q,qd)*qd  – bias vector
         G_kdl = kdl.JntArray(self.dof)
 
-        self._dyn_param.JntToMass(q_kdl, M_kdl)
-        self._dyn_param.JntToCoriolis(q_kdl, qd_kdl, C_kdl)
-        self._dyn_param.JntToGravity(q_kdl, G_kdl)
+        ret_m = self._dyn_param.JntToMass(q_kdl, M_kdl)
+        ret_c = self._dyn_param.JntToCoriolis(q_kdl, qd_kdl, C_kdl)
+        ret_g = self._dyn_param.JntToGravity(q_kdl, G_kdl)
+        if ret_m != 0 or ret_c != 0 or ret_g != 0:
+            self.get_logger().error(
+                f'KDL solver error: JntToMass={ret_m} '
+                f'JntToCoriolis={ret_c} JntToGravity={ret_g}',
+                throttle_duration_sec=2.0,
+            )
 
         # Convert to numpy
         M = np.array(
@@ -464,6 +532,14 @@ class ComputedTorqueControllerKDL(Node):
         )
         C = np.array([C_kdl[i] for i in range(self.dof)])
         G = np.array([G_kdl[i] for i in range(self.dof)])
+
+        self.get_logger().info(
+            f'[KDL] q={np.round(self.q, 3).tolist()}  '
+            f'G={np.round(G, 4).tolist()}  '
+            f'C={np.round(C, 4).tolist()}  '
+            f'M_diag={np.round(np.diag(M), 4).tolist()}',
+            throttle_duration_sec=1.0,
+        )
 
         # Optional motor inertia correction (diagonal)
         if self._use_motor_inertia:
@@ -565,12 +641,14 @@ class ComputedTorqueControllerKDL(Node):
     def _log_ready_once(self):
         if self._ready_logged:
             return
-        if not self.have_actual or not self.have_desired:
+        if not self.have_actual:
+            return
+        if not self._transparent and not self.have_desired:
             return
         self._ready_logged = True
+        mode = 'transparent' if self._transparent else 'tracking'
         self.get_logger().info(
-            'Controller ready: actual + desired state received, '
-            'publishing torques.'
+            f'Controller ready [{mode}]: publishing torques.'
         )
 
 

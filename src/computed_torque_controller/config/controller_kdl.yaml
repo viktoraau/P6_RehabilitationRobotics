@@ -27,15 +27,15 @@ computed_torque_controller_kdl:
 
     # ── Controller gains (set to 0 – tune before running) ────────────────────
     # Format: [joint_1, joint_2, joint_3]
-    kp: [12.0, 12.0, 12.0]
-    kd: [6.0, 6.0, 6.0]
+    kp: [12.0, 12.0, 50.0]
+    kd: [6.0, 6.0, 20.0]
 
     # ── Friction model ───────────────────────────────────────────────────────
     # Viscous friction coefficients B_i  (τ_visc = B_i · q̇_i)
-    viscous_friction: [2.24960223, 0.6635982131, 0.4467652881]
+    viscous_friction: [1.0, 0.6635982131, 0.4467652881]
 
     # Coulomb friction amplitudes Fc_i  (τ_coul = Fc_i · tanh(α · q̇_i))
-    coulomb_friction: [2.293041808, 0.9338754411, 0.797441937]
+    coulomb_friction: [0.5, 0.5, 0.0]
 
     # Scale factor α in the tanh approximation of sign(q̇)
     # Lower = smoother zero-crossing, less oscillation from velocity noise.
@@ -43,7 +43,7 @@ computed_torque_controller_kdl:
     coulomb_tanh_scale: 2.0
 
     # ── Motor inertia (diagonal Jm added to M) ───────────────────────────────
-    use_motor_inertia: true
+    use_motor_inertia: false
     motor_inertia: [0.356086015457996, 0.0, 0.0]   # [kg·m²] per joint
 
     # ── Torque scaling (joint-space torque → actuator command) ───────────────
@@ -53,7 +53,16 @@ computed_torque_controller_kdl:
     # If a joint feels like it is being pulled down (gravity compensation goes
     # the wrong way), flip its sign here: 1.0 = as-is, -1.0 = inverted.
     # joint_3 axis is xyz="-1 0 0" which can cause a sign flip vs hardware.
-    gravity_scale: [1.0, 1.0, 1.0]
+    gravity_scale: [0.5, 0.5, 1.0]
+
+    # ── Velocity filter ──────────────────────────────────────────────────────
+    # First-order low-pass filter on measured joint velocities (Coriolis,
+    # kd feedback, and friction all use the filtered value).
+    # Set to 0.0 to disable. At 100 Hz control rate:
+    #   10 Hz → heavy smoothing (~63 ms lag)
+    #   20 Hz → moderate smoothing (~32 ms lag)
+    #   30 Hz → light smoothing (~21 ms lag)
+    velocity_filter_cutoff_hz: 10.0
 
     # ── Transparent mode ─────────────────────────────────────────────────────
     # When true: kp/kd are ignored, no trajectory needed.
