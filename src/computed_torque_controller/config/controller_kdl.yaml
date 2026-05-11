@@ -53,7 +53,7 @@ computed_torque_controller_kdl:
     # If a joint feels like it is being pulled down (gravity compensation goes
     # the wrong way), flip its sign here: 1.0 = as-is, -1.0 = inverted.
     # joint_3 axis is xyz="-1 0 0" which can cause a sign flip vs hardware.
-    gravity_scale: [0.5, 0.5, 1.0]
+    gravity_scale: [0.5, 0.5, -0.85]
 
     # ── Velocity filter ──────────────────────────────────────────────────────
     # First-order low-pass filter on measured joint velocities (Coriolis,

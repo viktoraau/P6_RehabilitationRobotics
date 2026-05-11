@@ -210,7 +210,7 @@ class ComputedTorqueControllerKDL(Node):
         self.declare_parameter('motor_inertia', [0.0, 0.0, 0.0])
         self.declare_parameter('use_motor_inertia', True)
         self.declare_parameter('torque_scale', [1.0, 1.0, 1.0])
-        self.declare_parameter('torque_limits', [50.0, 10.0, 10.0]) #justér
+        self.declare_parameter('torque_limits', [45.0, 15.0, 15.0]) #justér
         self.declare_parameter('gravity_scale', [1.0, 1.0, 1.0])
         self.declare_parameter('transparent_friction_scale', 1.0)
         self.declare_parameter('transparent_mode', False)
