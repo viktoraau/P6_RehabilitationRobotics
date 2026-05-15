@@ -1,0 +1,6 @@
+# If joint_positions is empty, snaps q_ref to the current measured joint state.
+# If joint_positions has 3 values, sets q_ref to the provided angles (radians).
+float64[] joint_positions
+---
+bool success
+string message

@@ -1,0 +1,4 @@
+float64 damping_gain
+---
+bool success
+string message

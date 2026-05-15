@@ -46,6 +46,8 @@ class GameManagerNode(Node):
         self.declare_parameter("joint_h_index",       2)    # joint index for x / horizontal  (RUD)
         self.declare_parameter("joint_yaw_index",     0)    # joint index for turn / rotation (PS)
         self.declare_parameter("control_gain",        1.0)
+        self.declare_parameter("rom_patient_id",      "default")
+        self.declare_parameter("rom_data_dir",        "~/wrist_games_data")
         self.declare_parameter("start_lives",         3)
         self.declare_parameter("points_per_catch",    10)
 
@@ -59,7 +61,7 @@ class GameManagerNode(Node):
             "octagon":  ("wrist_games_ros2.octagon_game",  "2d"),
             "pendulum": ("wrist_games_ros2.pendulum_game", "1d_h"),
             "tunnel":   ("wrist_games_ros2.tunnel_game",   "3d"),
-            "xwing":    ("wrist_games_ros2.xwing_game",    "2d"),
+            "xwing":    ("wrist_games_ros2.xwing_game",    "3d"),
         }
         for name, (module, mode) in games.items():
             self.create_service(
@@ -87,6 +89,8 @@ class GameManagerNode(Node):
             "--ros-topic",        self._p("ros_topic").string_value,
             "--joint-names",      self._p("joint_names").string_value,
             "--control-gain",     str(self._p("control_gain").double_value),
+            "--rom-patient-id",   self._p("rom_patient_id").string_value,
+            "--rom-data-dir",     self._p("rom_data_dir").string_value,
             "--start-lives",      str(self._p("start_lives").integer_value),
             "--points-per-catch", str(self._p("points_per_catch").integer_value),
         ]
@@ -99,15 +103,27 @@ class GameManagerNode(Node):
                 "--joint-h-index", str(self._p("joint_h_index").integer_value),
             ]
         elif mode == "3d":
-            cmd += [
-                "--joint-v-index",   str(self._p("joint_v_index").integer_value),
-                "--joint-h-index",   str(self._p("joint_h_index").integer_value),
-                "--joint-yaw-index", str(self._p("joint_yaw_index").integer_value),
-            ]
+            # Tunnel uses RU for vertical and FE for horizontal by request.
+            if module.endswith("tunnel_game"):
+                cmd += [
+                    "--joint-v-index",   str(self._p("joint_h_index").integer_value),
+                    "--joint-h-index",   str(self._p("joint_v_index").integer_value),
+                    "--joint-yaw-index", str(self._p("joint_yaw_index").integer_value),
+                ]
+            else:
+                cmd += [
+                    "--joint-v-index",   str(self._p("joint_v_index").integer_value),
+                    "--joint-h-index",   str(self._p("joint_h_index").integer_value),
+                    "--joint-yaw-index", str(self._p("joint_yaw_index").integer_value),
+                ]
         elif mode == "1d_v":
             cmd += ["--control-joint-index", str(self._p("control_joint_index").integer_value)]
         elif mode == "1d_h":
-            cmd += ["--joint-h-index", str(self._p("joint_h_index").integer_value)]
+            # Pendulum uses FE by request; other 1d_h games keep horizontal index.
+            if module.endswith("pendulum_game"):
+                cmd += ["--joint-h-index", str(self._p("joint_v_index").integer_value)]
+            else:
+                cmd += ["--joint-h-index", str(self._p("joint_h_index").integer_value)]
         return cmd
 
     def _start_game(

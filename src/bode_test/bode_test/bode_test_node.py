@@ -20,6 +20,7 @@ from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import WrenchStamped
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from std_srvs.srv import Trigger
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 
@@ -29,6 +30,7 @@ class _State(enum.Enum):
     HOMING = 'HOMING'
     SETTLING = 'SETTLING'
     MEASURING = 'MEASURING'
+    ABORT_HOME = 'ABORT_HOME'  # coupling violation → home to zero, then finish
     DONE = 'DONE'
 
 
@@ -45,10 +47,11 @@ class BodeTestNode(Node):
 
     # Torque axis driven per joint_index in full_pipeline mode.
     # Axis order: 0=x, 1=y, 2=z  (maps to WrenchStamped torque components)
-    # joint_1 (axis -Y) → drive torque Y
-    # joint_2 (axis -Z) → drive torque Z
-    # joint_3 (axis +X) → drive torque X
+    # joint_1 (axis -Y) → drive torque -Y  (sign=-1 so positive torque → positive joint motion)
+    # joint_2 (axis -Z) → drive torque -Z  (sign=-1)
+    # joint_3 (axis +X) → drive torque +X  (sign=+1)
     _TORQUE_AXIS = [1, 2, 0]
+    _TORQUE_SIGN = [-1, -1, 1]  # +1 for positive axis, -1 for negative axis joints
 
     def __init__(self) -> None:
         super().__init__('bode_test_node')
@@ -70,8 +73,9 @@ class BodeTestNode(Node):
         self.declare_parameter('wrench_topic', '/ft300/wrench')
         self.declare_parameter('joint_state_topic', '/joint_states')
         self.declare_parameter('control_rate_hz', 100.0)
-        self.declare_parameter('homing_duration_s', 3.0)
-        self.declare_parameter('homing_threshold_rad', 0.05)
+        self.declare_parameter('homing_duration_s', 8.0)
+        self.declare_parameter('homing_threshold_rad', 0.01)
+        self.declare_parameter('coupling_threshold_rad', 0.5)
 
         # ── Read parameters ───────────────────────────────────────────────────
         self._mode = str(self.get_parameter('test_mode').value)
@@ -96,6 +100,7 @@ class BodeTestNode(Node):
         self._ctrl_rate = float(self.get_parameter('control_rate_hz').value)
         self._homing_duration = float(self.get_parameter('homing_duration_s').value)
         self._homing_threshold = float(self.get_parameter('homing_threshold_rad').value)
+        self._coupling_threshold = float(self.get_parameter('coupling_threshold_rad').value)
 
         # ── Frequency sweep (log-spaced) ──────────────────────────────────────
         self._freqs: list[float] = np.logspace(
@@ -113,6 +118,7 @@ class BodeTestNode(Node):
 
         self._measure_buf_t: list[float] = []
         self._measure_buf_q: list[float] = []
+        self._q_freq_start = np.zeros(3, dtype=np.float64)  # snapshot at start of each freq
 
         # Results: list of dicts with keys freq, gain_db, phase_deg, A_out, A_in
         self._results: list[dict] = []
@@ -122,6 +128,12 @@ class BodeTestNode(Node):
             self._traj_pub = self.create_publisher(JointTrajectory, traj_topic, 10)
         else:
             self._wrench_pub = self.create_publisher(WrenchStamped, wrench_topic, 10)
+
+        # ── Service clients (full_pipeline only) ─────────────────────────────
+        # reinit_reference resets q_ref = q_des = identity in the admittance
+        # so the stiffness spring actively holds zero during homing.
+        if self._mode == 'full_pipeline':
+            self._reinit_client = self.create_client(Trigger, 'admittance/reinit_reference')
 
         # ── Subscriber ────────────────────────────────────────────────────────
         self.create_subscription(JointState, js_topic, self._js_cb, 10)
@@ -179,6 +191,8 @@ class BodeTestNode(Node):
             f = self._freqs[self._freq_idx]
             t_rel = t - self._t_phase_start
             self._publish_sine(f, t_rel)
+            if self._coupling_violated(f):
+                return
             if t - self._t_state_start >= self._settle_cycles / f:
                 self._state = _State.MEASURING
                 self._t_state_start = t
@@ -193,10 +207,26 @@ class BodeTestNode(Node):
             f = self._freqs[self._freq_idx]
             t_rel = t - self._t_phase_start
             self._publish_sine(f, t_rel)
+            if self._coupling_violated(f):
+                return
             self._measure_buf_t.append(t_rel)
             self._measure_buf_q.append(float(self._q[self._joint_idx]))
             if t - self._t_state_start >= self._measure_cycles / f:
                 self._analyze(f)
+
+        elif self._state == _State.ABORT_HOME:
+            elapsed = t - self._t_state_start
+            self._publish_homing()
+            settled = bool(np.all(np.abs(self._q) < self._homing_threshold))
+            if settled or elapsed >= self._homing_duration:
+                if not settled:
+                    self.get_logger().warn(
+                        f'Homing after abort timed out ({elapsed:.1f} s). '
+                        'Robot may not be at zero — stop manually if needed.'
+                    )
+                else:
+                    self.get_logger().info('Returned to zero after abort.')
+                self._finish()
 
         elif self._state == _State.DONE:
             pass
@@ -223,6 +253,19 @@ class BodeTestNode(Node):
         self.get_logger().info(
             f'Pre-flight OK. Homing to zero (timeout={self._homing_duration:.1f} s) …'
         )
+        if self._mode == 'full_pipeline':
+            # Reset the admittance q_ref and q_des to identity (zero rotation)
+            # so the stiffness spring actively drives q_des to zero during homing.
+            # Without this, q_ref = q_des = TF-at-startup (possibly non-zero)
+            # and zero wrench would simply freeze the robot at the startup pose.
+            if self._reinit_client.service_is_ready():
+                future = self._reinit_client.call_async(Trigger.Request())
+                self.get_logger().info('Called admittance/reinit_reference — reference reset to zero.')
+            else:
+                self.get_logger().warn(
+                    'admittance/reinit_reference not available — homing may fail if '
+                    'the admittance was initialised at a non-zero pose.'
+                )
         self._t_state_start = self._now_s()
         self._state = _State.HOMING
 
@@ -232,11 +275,29 @@ class BodeTestNode(Node):
         t = self._now_s()
         self._t_phase_start = t
         self._t_state_start = t
+        self._q_freq_start = self._q.copy()
         self._state = _State.SETTLING
         self.get_logger().info(
             f'  [{idx + 1}/{len(self._freqs)}] f={f:.3f} Hz — settling '
             f'({self._settle_cycles} cycles = {self._settle_cycles / f:.1f} s) …'
         )
+
+    def _coupling_violated(self, f: float) -> bool:
+        """Check non-tested joints for motion relative to their position at frequency start."""
+        for i, jname in enumerate(self.JOINT_NAMES):
+            if i == self._joint_idx:
+                continue
+            deviation = abs(self._q[i] - self._q_freq_start[i])
+            if deviation > self._coupling_threshold:
+                self.get_logger().warn(
+                    f'ABORT: {jname} moved {math.degrees(deviation):.1f} deg from its '
+                    f'start position (threshold {math.degrees(self._coupling_threshold):.1f} deg) '
+                    f'at f={f:.3f} Hz — homing to zero …'
+                )
+                self._t_state_start = self._now_s()
+                self._state = _State.ABORT_HOME
+                return True
+        return False
 
     # ── Publishing ────────────────────────────────────────────────────────────
 
@@ -248,6 +309,9 @@ class BodeTestNode(Node):
                 accelerations=[0.0, 0.0, 0.0],
             )
         else:
+            # Zero wrench: the admittance stiffness spring (K*(q_des-q_ref))
+            # now pulls q_des toward identity because reinit_reference was called
+            # in preflight, so q_ref = q_des = identity = zero rotation.
             self._publish_wrench(tx=0.0, ty=0.0, tz=0.0)
 
     def _publish_sine(self, f: float, t_rel: float) -> None:
@@ -266,7 +330,9 @@ class BodeTestNode(Node):
             self._publish_traj(positions, velocities, accelerations)
         else:
             torque = [0.0, 0.0, 0.0]
-            torque[self._TORQUE_AXIS[self._joint_idx]] = pos_val
+            torque[self._TORQUE_AXIS[self._joint_idx]] = (
+                self._TORQUE_SIGN[self._joint_idx] * pos_val
+            )
             self._publish_wrench(tx=torque[0], ty=torque[1], tz=torque[2])
 
     def _publish_traj(
@@ -391,7 +457,10 @@ class BodeTestNode(Node):
 
         freqs = [r['frequency_hz'] for r in self._results]
         gains = [r['gain_db'] for r in self._results]
-        phases = [r['phase_deg'] for r in self._results]
+        # Unwrap phase to remove ±180° discontinuities caused by atan2 wrapping.
+        phases = np.degrees(
+            np.unwrap(np.radians([r['phase_deg'] for r in self._results]))
+        ).tolist()
 
         joint_name = self.JOINT_NAMES[self._joint_idx]
         title = (

@@ -6,7 +6,7 @@ import rclpy
 from geometry_msgs.msg import QuaternionStamped, Vector3Stamped, WrenchStamped
 from rclpy.node import Node
 from tf2_ros import Buffer, TransformException, TransformListener
-from wrist_games_interfaces.srv import SetAdmittanceEnabled, SetStiffness, SetStiffnessScale
+from wrist_games_interfaces.srv import SetAdmittanceEnabled, SetReferenceJoint, SetStiffness, SetStiffnessScale
 
 
 class OrientationAdmittanceNode(Node):
@@ -25,8 +25,8 @@ class OrientationAdmittanceNode(Node):
     def __init__(self) -> None:
         super().__init__('orientation_admittance_controller')
 
-        inertia = [0.05, 0.05, 0.05]
-        stiffness = [0.1, 0.1, 0.1]
+        inertia = [0.05, 0.04, 0.4]
+        stiffness = [0.25, 0.25, 0.50]
 
         for name, default in (
             ('input_topic', '/ft300/wrench'),
@@ -44,14 +44,14 @@ class OrientationAdmittanceNode(Node):
                 2 * (stiffness[2] * inertia[2]) ** 0.5,
             ]),
             ('torque_deadband_nm', [0.05, 0.05, 0.05]),
-            ('wrench_torque_scale', [1.0, -1.0, -1.0]),
+            ('wrench_torque_scale', [0.0, 0.0, 1.0]), # 1 -1 1
             ('torque_lowpass_cutoff_hz', 20.0),
-            ('moment_arm', [0.08, 0.08, 0.08]),
+            ('moment_arm', [0.0, 0.0, 0.0]),
             ('force_to_torque_gain', 1.0),
-            ('force_deadband_n', [0.5, 0.5, 0.5]),
-            ('max_angular_velocity', [3.5, 3.5, 3.5]),
+            ('force_deadband_n', [0.0, 0.0, 0.0]),
+            ('max_angular_velocity', [5.5, 5.5, 5.0]),
             ('max_angular_acceleration', [5.5, 5.5, 5.5]),
-            ('max_orientation_error_rad', [1.5, 1.5, 1.5]),
+            ('max_orientation_error_rad', [1.2, 5.0, 1.5]),
             ('reference_tip_frame', 'RU_1'),
             ('orientation_topic', '/desired_orientation'),
             ('angular_velocity_topic', '/desired_angular_velocity'),
@@ -76,7 +76,8 @@ class OrientationAdmittanceNode(Node):
         self.stiffness = self._read_vec_param('stiffness')
         self._base_stiffness = self.stiffness.copy()  # snapshot before transparent mode can zero it
         # Critical damping: D = 2 * sqrt(J * K) * zeta, zeta=1
-        self.damping = 2.0 * np.sqrt(self.inertia * self.stiffness) * 1.0
+        self.damping = 2.0 * np.sqrt(self.inertia * self.stiffness) * 1.3
+        self._base_damping = self.damping.copy()
 
         if self.transparent_mode:
             self.inertia = self.transparent_inertia
@@ -148,6 +149,11 @@ class OrientationAdmittanceNode(Node):
             'admittance/set_stiffness_scale',
             self._srv_set_stiffness_scale,
         )
+        self.create_service(
+            SetReferenceJoint,
+            'admittance/set_reference_joint',
+            self._srv_set_reference_joint,
+        )
 
         mode_str = 'TRANSPARENT (K=0, D=0)' if self.transparent_mode else 'normal'
         self.get_logger().info(
@@ -171,9 +177,9 @@ class OrientationAdmittanceNode(Node):
             dtype=np.float64,
         )
         self.latest_torque_sensor = np.asarray(
-            (msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z),
+            (0.0, 0.0, msg.wrench.torque.z),
             dtype=np.float64,
-        ) * self.wrench_torque_scale
+        ) #* self.wrench_torque_scale    msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z
         self.latest_wrench_frame = msg.header.frame_id or self.default_wrench_frame
         self.last_wrench_rx_time = self.get_clock().now()
 
@@ -509,7 +515,10 @@ class OrientationAdmittanceNode(Node):
             return response
         self.stiffness = new_k
         self._base_stiffness = new_k.copy()
-        self.damping = 2.0 * np.sqrt(self.inertia * self.stiffness)
+        # Where K=0, keep the existing damping so the system remains damped.
+        new_d = np.where(new_k > 0.0, 2.0 * np.sqrt(self.inertia * new_k) * 1.3, self._base_damping)
+        self.damping = new_d
+        self._base_damping = np.where(new_k > 0.0, new_d, self._base_damping)
         self.get_logger().info(f'Stiffness updated to {new_k.tolist()} via service.')
         response.success = True
         response.message = f'Stiffness set to {new_k.tolist()}.'
@@ -527,12 +536,47 @@ class OrientationAdmittanceNode(Node):
             return response
         self._stiffness_scale = alpha
         self.stiffness = self._base_stiffness * alpha
-        self.damping = 2.0 * np.sqrt(self.inertia * self.stiffness)
+        # Where scaled K=0 (alpha=0 or base K=0), fall back to base damping.
+        self.damping = np.where(
+            self.stiffness > 0.0,
+            2.0 * np.sqrt(self.inertia * self.stiffness) * 1.3,
+            self._base_damping,
+        )
         self.get_logger().info(
-            f'Stiffness scale set to {alpha:.4f} → effective stiffness {self.stiffness.tolist()}.'
+            f'Stiffness scale set to {alpha:.4f} → effective stiffness {self.stiffness.tolist()}, '
+            f'damping {self.damping.tolist()}.'
         )
         response.success = True
         response.message = f'Stiffness scale set to {alpha:.4f}.'
+        return response
+
+    def _srv_set_reference_joint(
+        self,
+        request: SetReferenceJoint.Request,
+        response: SetReferenceJoint.Response,
+    ) -> SetReferenceJoint.Response:
+        # Snap reference to the current live TF orientation of reference_tip_frame.
+        # The joint_positions field is ignored here — the reference is a quaternion
+        # derived from the kinematic chain, not individual joint angles.
+        q_new = self._get_tf_orientation_xyzw()
+        if q_new is None:
+            response.success = False
+            response.message = (
+                f'TF lookup from {self.base_frame!r} to {self.reference_tip_frame!r} failed; '
+                'reference not updated.'
+            )
+            return response
+        self.q_ref = q_new.copy()
+        self.q_des = q_new.copy()
+        self.omega = np.zeros(3, dtype=np.float64)
+        self.alpha = np.zeros(3, dtype=np.float64)
+        self.filtered_torque_base = np.zeros(3, dtype=np.float64)
+        self.get_logger().info(
+            f'Reference orientation reset to current TF pose '
+            f'({self.base_frame} → {self.reference_tip_frame}) via service.'
+        )
+        response.success = True
+        response.message = f'Reference orientation reset to current pose of {self.reference_tip_frame!r}.'
         return response
 
     def _warn_throttled(self, key: str, message: str, period_s: float = 1.0) -> None:

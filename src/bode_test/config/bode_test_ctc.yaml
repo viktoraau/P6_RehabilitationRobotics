@@ -16,13 +16,13 @@ bode_test_node:
     # ── Frequency sweep ────────────────────────────────────────────────────────
     freq_start_hz: 0.5
     freq_end_hz:   5.0
-    n_frequencies: 15     # log-spaced points
+    n_frequencies: 25     # log-spaced points
 
     # Cycles to publish before recording (let transients die out)
-    settle_cycles: 1
+    settle_cycles: 2
 
-    # Cycles to record for analysis
-    measure_cycles: 1
+    # Cycles to record for analysihis can s
+    measure_cycles: 2
 
     # ── Output ─────────────────────────────────────────────────────────────────
     output_csv:  ~/bode_ctc_joint0.csv
@@ -40,3 +40,8 @@ bode_test_node:
 
     # Joints are considered "homed" when |q| < this threshold (rad)
     homing_threshold_rad: 0.05
+
+    # If any non-tested joint moves beyond this from zero during the sweep,
+    # the test aborts and homes all joints to zero before finishing.
+    # joint_1/2 limits are ±65/60 deg; 0.15 rad (~8.6 deg) is conservative.
+    coupling_threshold_rad: 0.15

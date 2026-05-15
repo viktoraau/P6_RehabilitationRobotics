@@ -9,9 +9,11 @@
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
+  <depend>control_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf2_ros</depend>
+  <depend>moveit_msgs</depend>
   <depend>wrist_games_interfaces</depend>
 
   <test_depend>ament_copyright</test_depend>

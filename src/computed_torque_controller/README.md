@@ -96,3 +96,17 @@ After editing, use the **installed** path (or the source path) with `--params-fi
 ros2 run computed_torque_controller controller_node_kdl \
   --ros-args --params-file /home/a/wrist_games_data/pr/P6_RehabilitationRobotics/src/computed_torque_controller/config/controller_kdl.yaml \
   -p transparent_mode:=true
+
+
+ros2 topic pub /bridge_desired_trajectory trajectory_msgs/msg/JointTrajectory "{
+  header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''},
+  joint_names: ['joint_1', 'joint_2', 'joint_3'],
+  points: [
+    {
+      positions: [0.0, 0.0, 0.0],
+      velocities: [0.0, 0.0, 0.0],
+      accelerations: [0.0, 0.0, 0.0],
+      time_from_start: {sec: 2, nanosec: 0}
+    }
+  ]
+}" 

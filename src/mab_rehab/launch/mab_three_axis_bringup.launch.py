@@ -99,6 +99,7 @@ def _build_launch_nodes(context, controllers_file, installed_share):
         LaunchConfiguration("controller_spawn_initial_delay_sec").perform(context))
     controller_spawn_stagger_sec = float(
         LaunchConfiguration("controller_spawn_stagger_sec").perform(context))
+    robot_description_topic = LaunchConfiguration("robot_description_topic").perform(context).strip()
 
     # Load the three YAML config files.
     startup_cfg = _config_root(
@@ -220,6 +221,7 @@ def _build_launch_nodes(context, controllers_file, installed_share):
         package="controller_manager",
         executable="ros2_control_node",
         prefix=[f"taskset -c {controller_cpu_affinity}"] if controller_cpu_affinity else [],
+        remappings=[("robot_description", robot_description_topic)],
         parameters=[
             robot_description,
             controllers_file,
@@ -232,6 +234,7 @@ def _build_launch_nodes(context, controllers_file, installed_share):
     robot_state_publisher = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
+        remappings=[("robot_description", robot_description_topic)],
         parameters=[robot_description],
         output="screen",
     )
@@ -390,10 +393,15 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "pid_tuning_file",
             default_value=installed_share + "/config/pid_tuning.yaml"),
-        DeclareLaunchArgument("active_controller", default_value="trajectory",),
+        DeclareLaunchArgument("active_controller", default_value="effort",),
         DeclareLaunchArgument("spawn_inactive_controllers", default_value="true"),
         DeclareLaunchArgument("controller_spawn_initial_delay_sec", default_value="3.0"),
         DeclareLaunchArgument("controller_spawn_stagger_sec", default_value="1.0"),
+        DeclareLaunchArgument(
+            "robot_description_topic",
+            default_value="/robot_description",
+            description="Topic used to hand the URDF to robot_state_publisher and ros2_control_node.",
+        ),
         DeclareLaunchArgument("enable_brake_chopper", default_value="false"),
         DeclareLaunchArgument("brake_voltage_source", default_value="dynamic_joint_state"),
         DeclareLaunchArgument("brake_trigger_voltage_v", default_value="27.0"),

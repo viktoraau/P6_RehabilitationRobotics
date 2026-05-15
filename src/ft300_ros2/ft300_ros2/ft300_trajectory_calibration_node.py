@@ -57,7 +57,7 @@ from control_msgs.action import FollowJointTrajectory
 from geometry_msgs.msg import WrenchStamped
 from sensor_msgs.msg import JointState
 from std_srvs.srv import Trigger
-from trajectory_msgs.msg import JointTrajectoryPoint
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Constants
@@ -181,7 +181,14 @@ class FT300TrajectoryCalibNode(Node):
         self.declare_parameter("sample_time",      1.0)
         self.declare_parameter(
             "action_server",
-            "/joint_trajectory_controller/follow_joint_trajectory", #/joint_trajectory_controller/joint_trajectory
+            "/joint_trajectory_controller/follow_joint_trajectory",
+        )
+        # trajectory_mode: "action" (default, FollowJointTrajectory action) or
+        #                  "topic"  (publish JointTrajectory directly, for CTC)
+        self.declare_parameter("trajectory_mode", "action")
+        self.declare_parameter(
+            "trajectory_topic",
+            "joint_trajectory_controller/joint_trajectory",
         )
         self.declare_parameter("base_frame",   "base_link")
         self.declare_parameter("sensor_frame", "RU_1")
@@ -193,9 +200,11 @@ class FT300TrajectoryCalibNode(Node):
         self._calib_file  = os.path.abspath(
             self.get_parameter("calibration_file").value
         )
-        self._settle_time = float(self.get_parameter("settle_time").value)
-        self._sample_time = float(self.get_parameter("sample_time").value)
-        self._action_ns   = self.get_parameter("action_server").value
+        self._settle_time      = float(self.get_parameter("settle_time").value)
+        self._sample_time      = float(self.get_parameter("sample_time").value)
+        self._action_ns        = self.get_parameter("action_server").value
+        self._trajectory_mode  = self.get_parameter("trajectory_mode").value
+        self._trajectory_topic = self.get_parameter("trajectory_topic").value
         self._base_frame  = self.get_parameter("base_frame").value
         self._sensor_frame = self.get_parameter("sensor_frame").value
         self._lp_cutoff  = float(self.get_parameter("lp_cutoff_hz").value)
@@ -265,10 +274,15 @@ class FT300TrajectoryCalibNode(Node):
         # ── Watchdog timer: warn every 5 s if no raw messages arrive ──────
         self.create_timer(5.0, self._watchdog)
 
-        # ── Trajectory action client ───────────────────────────────────────
+        # ── Trajectory action client (action mode) ──────────────────────────
         self._traj_client = ActionClient(
             self, FollowJointTrajectory, self._action_ns,
             callback_group=self._cbg,
+        )
+
+        # ── Trajectory topic publisher (topic mode, for CTC) ──────────────
+        self._traj_pub = self.create_publisher(
+            JointTrajectory, self._trajectory_topic, 10
         )
 
         self.get_logger().info(
@@ -278,6 +292,14 @@ class FT300TrajectoryCalibNode(Node):
             f"Publishing calibrated wrench on '{self._calib_topic}'"
         )
         self.get_logger().info("Service '/ft300/force_torque_cali' ready")
+        if self._trajectory_mode == "topic":
+            self.get_logger().info(
+                f"Trajectory mode: TOPIC  → publishing to '{self._trajectory_topic}'"
+            )
+        else:
+            self.get_logger().info(
+                f"Trajectory mode: ACTION → action server '{self._action_ns}'"
+            )
         if self._lp_cutoff > 0.0:
             self.get_logger().info(
                 f"Low-pass filter enabled: cutoff={self._lp_cutoff:.1f} Hz  "
@@ -427,6 +449,49 @@ class FT300TrajectoryCalibNode(Node):
     # ──────────────────────────────────────────────────────────────────────
 
     def _move_to_joints(self, positions: list, duration_s: float):
+        """Send a trajectory goal and block until done.
+
+        In 'action' mode (default): uses FollowJointTrajectory action.
+        In 'topic' mode (CTC):      publishes JointTrajectory directly and
+                                    waits duration_s for the robot to reach
+                                    the target.
+        """
+        if self._trajectory_mode == "topic":
+            self._move_to_joints_topic(positions, duration_s)
+        else:
+            self._move_to_joints_action(positions, duration_s)
+
+    def _move_to_joints_topic(self, positions: list, duration_s: float):
+        """Publish JointTrajectory to topic (used with CTC in effort mode).
+
+        The IK node publishes continuously on the same topic at ~100 Hz, so a
+        single publish would be immediately overwritten.  Instead we publish in
+        a 100 Hz loop for the full duration to keep the calibration setpoint
+        dominant.
+        """
+        msg = JointTrajectory()
+        msg.joint_names = JOINT_NAMES
+
+        pt = JointTrajectoryPoint()
+        pt.positions     = [float(p) for p in positions]
+        pt.velocities    = [0.0] * len(positions)
+        pt.accelerations = [0.0] * len(positions)
+        pt.time_from_start = Duration(
+            sec=int(duration_s),
+            nanosec=int((duration_s % 1.0) * 1e9),
+        )
+        msg.points = [pt]
+
+        self.get_logger().debug(
+            f"[topic mode] Streaming trajectory to '{self._trajectory_topic}' "
+            f"for {duration_s:.1f} s at 100 Hz"
+        )
+        end_t = time.time() + duration_s
+        while time.time() < end_t:
+            self._traj_pub.publish(msg)
+            time.sleep(0.01)  # 100 Hz — dominates the IK node's stream
+
+    def _move_to_joints_action(self, positions: list, duration_s: float):
         """Send a single-point FollowJointTrajectory goal and block until done."""
         if not self._traj_client.wait_for_server(timeout_sec=5.0):
             raise RuntimeError(

@@ -25,9 +25,10 @@ setup(
     entry_points={
         'console_scripts': [
             'admittance_controller = Admittance_controller.admittance_controller_node:main',
+            'joint_space_admittance = Admittance_controller.joint_space_admittance_node:main',
             'interactive_force_tester = Admittance_controller.forces:main',
             'command_publisher = Admittance_controller.traj_to_joint_state:main',
-            
+            'admittance_to_servo_bridge = Admittance_controller.admittance_to_servo_bridge:main',
         ],
     },
 )

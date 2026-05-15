@@ -4,8 +4,9 @@ xwing_game.launch.py
 Stand-alone launcher for the X-Wing space shooter game.
 
 Joints used:
-  index 1 – y / FE  (flexion/extension moves ship up/down)
-  index 2 – x / RUD (radial/ulnar deviation moves ship left/right)
+  index 0 – turn / PS  (pronation/supination turns the aircraft)
+  index 1 – FE         (forward/back)
+  index 2 – RU         (right/left strafe)
 
 Usage:
   ros2 launch wrist_games xwing_game.launch.py
@@ -22,6 +23,7 @@ def generate_launch_description() -> LaunchDescription:
     return LaunchDescription([
         DeclareLaunchArgument("ros_topic",        default_value="/joint_states"),
         DeclareLaunchArgument("joint_names",       default_value=""),
+        DeclareLaunchArgument("joint_yaw_index",   default_value="0"),
         DeclareLaunchArgument("joint_v_index",     default_value="1"),
         DeclareLaunchArgument("joint_h_index",     default_value="2"),
         DeclareLaunchArgument("control_gain",      default_value="1.0"),
@@ -34,6 +36,7 @@ def generate_launch_description() -> LaunchDescription:
             arguments=[
                 "--ros-topic",        LaunchConfiguration("ros_topic"),
                 "--joint-names",      LaunchConfiguration("joint_names"),
+                "--joint-yaw-index",  LaunchConfiguration("joint_yaw_index"),
                 "--joint-v-index",    LaunchConfiguration("joint_v_index"),
                 "--joint-h-index",    LaunchConfiguration("joint_h_index"),
                 "--control-gain",     LaunchConfiguration("control_gain"),

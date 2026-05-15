@@ -59,7 +59,7 @@ def _build_nodes(context):
             servo_params,
             robot_description,
             robot_description_semantic,
-            kinematics_yaml,
+            {"robot_description_kinematics": kinematics_yaml},
         ],
         output="screen",
     )

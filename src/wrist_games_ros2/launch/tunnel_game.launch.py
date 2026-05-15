@@ -5,8 +5,8 @@ Stand-alone launcher for the Shape Tunnel game (full 3-DOF wrist control).
 
 Joints used:
   index 0 – turn / PS  (pronation/supination rotates the shape)
-  index 1 – y    / FE  (flexion/extension moves shape up/down)
-  index 2 – x    / RUD (radial/ulnar deviation nudges shape left/right)
+  index 2 – y    / RUD (radial/ulnar deviation moves shape up/down)
+  index 1 – x    / FE  (flexion/extension nudges shape left/right)
 
 Usage:
   ros2 launch wrist_games_ros2 tunnel_game.launch.py
@@ -24,9 +24,11 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("ros_topic",          default_value="/joint_states"),
         DeclareLaunchArgument("joint_names",         default_value=""),
         DeclareLaunchArgument("joint_yaw_index",     default_value="0"),
-        DeclareLaunchArgument("joint_v_index",       default_value="1"),
-        DeclareLaunchArgument("joint_h_index",       default_value="2"),
+        DeclareLaunchArgument("joint_v_index",       default_value="2"),
+        DeclareLaunchArgument("joint_h_index",       default_value="1"),
         DeclareLaunchArgument("control_gain",        default_value="1.0"),
+        DeclareLaunchArgument("rom_patient_id",      default_value="default"),
+        DeclareLaunchArgument("rom_data_dir",        default_value="~/wrist_games_data"),
         DeclareLaunchArgument("start_lives",         default_value="3"),
         DeclareLaunchArgument("points_per_catch",    default_value="10"),
 
@@ -40,6 +42,8 @@ def generate_launch_description() -> LaunchDescription:
                 "--joint-v-index",      LaunchConfiguration("joint_v_index"),
                 "--joint-h-index",      LaunchConfiguration("joint_h_index"),
                 "--control-gain",       LaunchConfiguration("control_gain"),
+                "--rom-patient-id",     LaunchConfiguration("rom_patient_id"),
+                "--rom-data-dir",       LaunchConfiguration("rom_data_dir"),
                 "--start-lives",        LaunchConfiguration("start_lives"),
                 "--points-per-catch",   LaunchConfiguration("points_per_catch"),
             ],

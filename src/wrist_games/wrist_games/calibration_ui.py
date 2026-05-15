@@ -11,15 +11,9 @@ run(angles_fn, kb_update_fn, patient_id) -> dict
                         'results': {joint: {'min': float, 'max': float}, ...}}
 """
 
-import math
-
 import pygame
 
 from wrist_games.rom_utils import JOINT_FE, JOINT_RU, JOINT_PS
-
-# ── Timing ────────────────────────────────────────────────────────────────────
-COUNTDOWN_S = 3.0
-RECORDING_S = 4.0
 
 # ── Screen ────────────────────────────────────────────────────────────────────
 W, H = 960, 680
@@ -38,17 +32,17 @@ C_PEAK   = (220, 220,  55)
 # ── Calibration phases ────────────────────────────────────────────────────────
 _PHASES = [
     dict(joint=JOINT_FE, direction="max", title="FLEXION",
-         instruction="Bend your wrist forward\n(palm toward forearm)", icon="↑"),
+        instruction="Move your wrist to the RIGHT\n(FE right direction)", icon="→"),
     dict(joint=JOINT_FE, direction="min", title="EXTENSION",
-         instruction="Bend your wrist backward\n(back of hand toward forearm)", icon="↓"),
+        instruction="Move your wrist to the LEFT\n(FE left direction)", icon="←"),
     dict(joint=JOINT_RU, direction="max", title="RADIAL DEVIATION",
-         instruction="Tilt your wrist toward your thumb\n(radial side)", icon="→"),
+        instruction="Move your thumb UP\n(RU thumb-up direction)", icon="↑"),
     dict(joint=JOINT_RU, direction="min", title="ULNAR DEVIATION",
-         instruction="Tilt your wrist toward your pinky\n(ulnar side)", icon="←"),
+        instruction="Move your thumb DOWN\n(RU thumb-down direction)", icon="↓"),
     dict(joint=JOINT_PS, direction="max", title="PRONATION",
-         instruction="Rotate your forearm\nso palm faces down", icon="↻"),
+        instruction="Rotate your forearm CLOCKWISE\n(PS clockwise direction)", icon="↻"),
     dict(joint=JOINT_PS, direction="min", title="SUPINATION",
-         instruction="Rotate your forearm\nso palm faces up", icon="↺"),
+        instruction="Rotate your forearm COUNTERCLOCKWISE\n(PS counterclockwise direction)", icon="↺"),
 ]
 
 _BAR_RANGE = {JOINT_FE: (-90, 90), JOINT_RU: (-40, 40), JOINT_PS: (-90, 90)}
@@ -102,7 +96,6 @@ def run(angles_fn, kb_update_fn, patient_id: str) -> dict:
     phase_idx   = 0
     results     = {}
     phase_peak  = None
-    phase_timer = 0.0
 
     while True:
         dt = clock.tick(60) / 1000.0
@@ -120,14 +113,23 @@ def run(angles_fn, kb_update_fn, patient_id: str) -> dict:
 
                 if event.key == pygame.K_SPACE:
                     if st == "INTRO":
-                        st, phase_timer = "COUNTDOWN", COUNTDOWN_S
+                        st, phase_peak = "POSITION", None
+
+                    elif st == "POSITION":
+                        phase = _PHASES[phase_idx]
+                        joint = phase["joint"]
+                        phase_peak = ang[joint]
+                        if joint not in results:
+                            results[joint] = {}
+                        results[joint][phase["direction"]] = phase_peak
+                        st = "RESULT"
 
                     elif st == "RESULT":
                         phase_idx += 1
                         if phase_idx >= len(_PHASES):
                             st = "SUMMARY"
                         else:
-                            st, phase_timer = "COUNTDOWN", COUNTDOWN_S
+                            st, phase_peak = "POSITION", None
 
                     elif st == "SUMMARY":
                         pygame.quit()
@@ -136,27 +138,6 @@ def run(angles_fn, kb_update_fn, patient_id: str) -> dict:
         ang = angles_fn()
         cur = ang[_PHASES[phase_idx]["joint"]] if phase_idx < len(_PHASES) else 0.0
 
-        # State updates
-        if st == "COUNTDOWN":
-            phase_timer -= dt
-            if phase_timer <= 0:
-                st, phase_timer, phase_peak = "RECORDING", RECORDING_S, None
-
-        elif st == "RECORDING":
-            phase = _PHASES[phase_idx]
-            cur   = ang[phase["joint"]]
-            if phase["direction"] == "max":
-                phase_peak = cur if phase_peak is None else max(phase_peak, cur)
-            else:
-                phase_peak = cur if phase_peak is None else min(phase_peak, cur)
-            phase_timer -= dt
-            if phase_timer <= 0:
-                joint = phase["joint"]
-                if joint not in results:
-                    results[joint] = {}
-                results[joint][phase["direction"]] = phase_peak
-                st = "RESULT"
-
         # ── Draw ──────────────────────────────────────────────────────────────
         screen.fill(C_BG)
 
@@ -164,13 +145,13 @@ def run(angles_fn, kb_update_fn, patient_id: str) -> dict:
             _centred(screen, f_title, "ROM Calibration", 80, C_ACCENT)
             _centred(screen, f_med, f"Patient: {patient_id}", 160, C_TEXT)
             _centred(screen, f_med, "You will perform 6 movements, one at a time.", 220, C_TEXT)
-            _centred(screen, f_med, "Move as far as comfortable and hold.", 260, C_TEXT)
+            _centred(screen, f_med, "Move as far as comfortable, then press SPACE to record.", 260, C_TEXT)
             if demo:
                 _centred(screen, f_sm, "DEMO  W/S=FE  A/D=RU  Q/E=PS", 340, C_WARN)
             _centred(screen, f_big, "Press SPACE to begin", 430, C_OK)
             _centred(screen, f_sm, "ESC = cancel", H - 40, C_DIM)
 
-        elif st in ("COUNTDOWN", "RECORDING"):
+        elif st == "POSITION":
             phase = _PHASES[phase_idx]
             joint = phase["joint"]
             lo, hi = _BAR_RANGE[joint]
@@ -182,16 +163,9 @@ def run(angles_fn, kb_update_fn, patient_id: str) -> dict:
             _centred(screen, f_title, phase["icon"], 255, C_TEXT)
 
             bx, by, bw, bh = W // 2 - 220, 360, 440, 36
-            _bar(screen, cur, lo, hi, bx, by, bw, bh, phase_peak)
+            _bar(screen, cur, lo, hi, bx, by, bw, bh)
             _centred(screen, f_med, f"{cur:+.1f}°", by + bh + 12, C_TEXT)
-            if phase_peak is not None:
-                _centred(screen, f_sm, f"Peak: {phase_peak:+.1f}°", by + bh + 48, C_PEAK)
-
-            t = math.ceil(phase_timer)
-            if st == "COUNTDOWN":
-                _centred(screen, f_big, f"Get ready… {t}", 480, C_WARN)
-            else:
-                _centred(screen, f_big, f"Recording… {t}s", 480, C_OK)
+            _centred(screen, f_big, "Press SPACE to record this position", 480, C_OK)
 
         elif st == "RESULT":
             phase = _PHASES[phase_idx]

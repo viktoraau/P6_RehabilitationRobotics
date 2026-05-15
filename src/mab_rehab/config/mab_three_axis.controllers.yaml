@@ -32,6 +32,7 @@ joint_trajectory_controller:
       - joint_1
       - joint_2
       - joint_3
+    allow_nonzero_velocity_at_trajectory_end: true
     constraints:
       goal_time: 2.0
       stopped_velocity_tolerance: 0.06

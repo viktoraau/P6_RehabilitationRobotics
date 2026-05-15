@@ -5,8 +5,8 @@ tunnel_game.py
 
 3-DOF wrist control:
   Joint 0 (PS  - Pron/Supination)    →  shape rotation (yaw)
-  Joint 1 (FE  - Flex/Extend)        →  shape vertical position (Y)
-  Joint 2 (RUD - Radial/Ulnar Dev.)  →  shape horizontal nudge (X)
+    Joint 2 (RUD - Radial/Ulnar Dev.)  →  shape vertical position (Y)
+    Joint 1 (FE  - Flex/Extend)        →  shape horizontal nudge (X)
 
 A wall with a custom-shaped hole scrolls toward you from the right.
 You must align your shape's position AND rotation to pass through the hole.
@@ -26,6 +26,7 @@ import pygame
 import rclpy
 
 from wrist_games.joint_state_bridge import JointStateBridge
+from wrist_games.rom_utils import JOINT_FE, JOINT_PS, JOINT_RU, load_latest_rom
 from wrist_games.score_sound import LevelManager, ScoreBoard, SoundManager
 
 W, H = 900, 600
@@ -147,6 +148,13 @@ class TunnelGame:
         self.yaw_joint = args.joint_yaw_index
         self.gain      = args.control_gain
 
+        ranges, rom_path = load_latest_rom(args.rom_patient_id, Path(args.rom_data_dir).expanduser())
+        self.rom_ranges = ranges
+        if rom_path:
+            print(f"[tunnel_game] Using ROM file: {rom_path}")
+        else:
+            print("[tunnel_game] No ROM file found, using default ROM ranges")
+
         self.scoreboard   = ScoreBoard(args.points_per_catch)
         self.level_manager = LevelManager(points_per_level=50)
         self.sound        = SoundManager(Path(__file__).resolve().parent / "assets")
@@ -199,18 +207,41 @@ class TunnelGame:
 
     def _update_control(self) -> None:
         rclpy.spin_once(self.bridge, timeout_sec=0.0)
-        vals = self.bridge.get_normalized(self.gain)
+        raw = self.bridge.get_positions()
+        deg = [math.degrees(v) for v in raw]
 
-        # FE controls Y (flex = down, extend = up in screen coords)
-        target_y = H / 2 - vals[self.v_joint] * PLAYER_RANGE_Y
+        ps_n = self._norm_rom(
+            deg[self.yaw_joint],
+            self.rom_ranges[JOINT_PS][0],
+            self.rom_ranges[JOINT_PS][1],
+        )
+        ru_n = self._norm_rom(
+            deg[self.v_joint],
+            self.rom_ranges[JOINT_RU][0],
+            self.rom_ranges[JOINT_RU][1],
+        )
+        fe_n = self._norm_rom(
+            deg[self.h_joint],
+            self.rom_ranges[JOINT_FE][0],
+            self.rom_ranges[JOINT_FE][1],
+        )
+
+        # RU controls Y
+        target_y = H / 2 - ru_n * PLAYER_RANGE_Y
         self.player_y += (target_y - self.player_y) * 0.22
 
-        # RUD controls small X nudge
-        target_x = PLAYER_ANCHOR_X + vals[self.h_joint] * PLAYER_RANGE_X
+        # FE controls small X nudge
+        target_x = PLAYER_ANCHOR_X + fe_n * PLAYER_RANGE_X
         self.player_x += (target_x - self.player_x) * 0.22
 
         # PS controls yaw  (tanh maps to [-1,1] → [-π, π])
-        self.player_rot = vals[self.yaw_joint] * math.pi
+        self.player_rot = ps_n * math.pi
+
+    @staticmethod
+    def _norm_rom(angle_deg: float, lo: float, hi: float) -> float:
+        if angle_deg >= 0.0:
+            return min(1.0, angle_deg / hi) if hi > 0.0 else 0.0
+        return max(-1.0, angle_deg / abs(lo)) if lo < 0.0 else 0.0
 
     # ------------------------------------------------------------------
     # Level
@@ -461,7 +492,7 @@ class TunnelGame:
             self.screen.blit(shape_info, (18, 50))
 
             tip = self.font_sm.render(
-                "FE=up/down  RUD=left/right  PS=rotate  — fit through the hole!",
+                "RU=up/down  FE=left/right  PS=rotate  — fit through the hole!",
                 True, (100, 105, 140))
             self.screen.blit(tip, (W // 2 - tip.get_width() // 2, H - 28))
 
@@ -476,13 +507,15 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="3-DOF wrist shape tunnel game (ROS2).")
     p.add_argument("--ros-topic", default="/joint_states")
     p.add_argument("--joint-names", default="")
-    p.add_argument("--joint-v-index",   type=int, default=1, choices=[0, 1, 2],
-                   help="FE joint – controls up/down (default 1).")
-    p.add_argument("--joint-h-index",   type=int, default=2, choices=[0, 1, 2],
-                   help="RUD joint – controls left/right nudge (default 2).")
+    p.add_argument("--joint-v-index",   type=int, default=2, choices=[0, 1, 2],
+                   help="RUD joint – controls up/down (default 2).")
+    p.add_argument("--joint-h-index",   type=int, default=1, choices=[0, 1, 2],
+                   help="FE joint – controls left/right nudge (default 1).")
     p.add_argument("--joint-yaw-index", type=int, default=0, choices=[0, 1, 2],
                    help="PS joint  – controls shape rotation (default 0).")
     p.add_argument("--control-gain",    type=float, default=1.0)
+    p.add_argument("--rom-patient-id", default="default")
+    p.add_argument("--rom-data-dir", default="~/wrist_games_data")
     p.add_argument("--start-lives",     type=int,   default=3)
     p.add_argument("--points-per-catch", type=int,  default=10)
     return p

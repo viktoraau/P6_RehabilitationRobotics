@@ -25,13 +25,13 @@ def generate_launch_description():
     config = os.path.join(pkg, 'config', 'bode_test_pipeline.yaml')
 
     return LaunchDescription([
-        DeclareLaunchArgument('joint_index', default_value='0',
+        DeclareLaunchArgument('joint_index', default_value='2',
                               description='Axis to excite: 0=joint_1/FE, 1=joint_2/UD, 2=joint_3/RU'),
-        DeclareLaunchArgument('amplitude', default_value='0.7',
+        DeclareLaunchArgument('amplitude', default_value='0.15',
                               description='Sine torque amplitude in Newton-metres'),
-        DeclareLaunchArgument('freq_start_hz', default_value='0.1'),
-        DeclareLaunchArgument('freq_end_hz', default_value='5.0'),
-        DeclareLaunchArgument('n_frequencies', default_value='12'),
+        DeclareLaunchArgument('freq_start_hz', default_value='0.25'),
+        DeclareLaunchArgument('freq_end_hz', default_value='2.0'),
+        DeclareLaunchArgument('n_frequencies', default_value='25'),
         DeclareLaunchArgument('output_csv', default_value='~/bode_pipeline.csv'),
         DeclareLaunchArgument('plot_output', default_value='~/bode_pipeline.png'),
 

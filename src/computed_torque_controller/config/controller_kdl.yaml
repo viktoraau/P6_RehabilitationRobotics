@@ -17,9 +17,10 @@ computed_torque_controller_kdl:
 
     # ── Topics ───────────────────────────────────────────────────────────────
     joint_state_topic:         /joint_states
-    # Must match the topic the IK node publishes to
-    # (ik_damped_jacobian_node default: /joint_trajectory_controller/joint_trajectory).
-    desired_trajectory_topic:  /joint_trajectory_controller/joint_trajectory
+    # use_moveit:=true  → bridge publishes here with positions + velocities + accelerations
+    # use_moveit:=false → IK node publishes to /joint_trajectory_controller/joint_trajectory;
+    #                     change back to that topic when running the custom IK path.
+    desired_trajectory_topic:  /bridge_desired_trajectory
     torque_command_topic:      /joint_group_effort_controller/commands
 
     # ── Control rate ─────────────────────────────────────────────────────────
@@ -27,24 +28,24 @@ computed_torque_controller_kdl:
 
     # ── Controller gains (set to 0 – tune before running) ────────────────────
     # Format: [joint_1, joint_2, joint_3]
-    kp: [12.0, 12.0, 50.0]
-    kd: [6.0, 6.0, 20.0]
+    kp: [100.0, 100.0, 100.0] # working 1200 / 900 / 1200
+    kd: [200.0, 120.0, 100.0]  # working 200 / 120 / 100
 
     # ── Friction model ───────────────────────────────────────────────────────
     # Viscous friction coefficients B_i  (τ_visc = B_i · q̇_i)
-    viscous_friction: [1.0, 0.6635982131, 0.4467652881]
+    viscous_friction: [2.2292, 1.3216, 1.9322]
 
     # Coulomb friction amplitudes Fc_i  (τ_coul = Fc_i · tanh(α · q̇_i))
-    coulomb_friction: [0.5, 0.5, 0.0]
+    coulomb_friction: [1.5408, 0.3476, 0.0073] 
 
     # Scale factor α in the tanh approximation of sign(q̇)
     # Lower = smoother zero-crossing, less oscillation from velocity noise.
     # 2.0 is recommended for transparent mode; 10.0 is fine for tracking.
-    coulomb_tanh_scale: 2.0
+    coulomb_tanh_scale: 5.0
 
     # ── Motor inertia (diagonal Jm added to M) ───────────────────────────────
     use_motor_inertia: false
-    motor_inertia: [0.356086015457996, 0.0, 0.0]   # [kg·m²] per joint
+    motor_inertia: [0.0, 0.0, 0.0]   # [kg·m²] per joint
 
     # ── Torque scaling (joint-space torque → actuator command) ───────────────
     torque_scale: [4.2535, 8.1687, 5.1775]
@@ -53,7 +54,7 @@ computed_torque_controller_kdl:
     # If a joint feels like it is being pulled down (gravity compensation goes
     # the wrong way), flip its sign here: 1.0 = as-is, -1.0 = inverted.
     # joint_3 axis is xyz="-1 0 0" which can cause a sign flip vs hardware.
-    gravity_scale: [0.5, 0.5, -0.85]
+    gravity_scale: [1.0, -1.0, 1.0]
 
     # ── Velocity filter ──────────────────────────────────────────────────────
     # First-order low-pass filter on measured joint velocities (Coriolis,
@@ -62,7 +63,14 @@ computed_torque_controller_kdl:
     #   10 Hz → heavy smoothing (~63 ms lag)
     #   20 Hz → moderate smoothing (~32 ms lag)
     #   30 Hz → light smoothing (~21 ms lag)
-    velocity_filter_cutoff_hz: 10.0
+    velocity_filter_cutoff_hz: 20.0
+
+    # ── Joint limit avoidance ─────────────────────────────────────────────────
+    # Adds a restoring torque that ramps up linearly inside the buffer zone so
+    # the arm does not press against the hardware stop.  Start conservative and
+    # increase if the arm still reaches the limit.
+    joint_limit_avoidance_gain: 20.0   # [Nm/rad] inside the buffer
+    joint_limit_buffer: 0.05           # [rad] (~3°) buffer before the limit
 
     # ── Transparent mode ─────────────────────────────────────────────────────
     # When true: kp/kd are ignored, no trajectory needed.
@@ -71,4 +79,4 @@ computed_torque_controller_kdl:
 
     # Fraction of friction compensation applied in transparent mode (0–1).
     # Reduce if oscillations occur near zero velocity. Start at 0.3 and tune up.
-    transparent_friction_scale: 1.0
+    transparent_friction_scale: 0.40

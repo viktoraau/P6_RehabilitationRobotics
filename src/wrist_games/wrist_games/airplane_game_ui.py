@@ -4,8 +4,8 @@ Airplane Game UI  –  rail-flight rehabilitation game.
 The plane flies forward automatically on a route of rings.
 All three wrist DOF are used:
   PS (pronation/supination) → bank left/right  → lateral drift
-  FE (flexion/extension)    → pitch up/down    → altitude
-  RU (radial/ulnar)         → yaw nudge        → fine lateral trim
+    RU (radial/ulnar)         → pitch up/down    → altitude
+    FE (flexion/extension)    → yaw nudge        → fine lateral trim
 
 run(angles_fn, kb_update_fn, patient_id, ranges, route_name) -> dict
   angles_fn()       -> {'wrist_fe': deg, 'wrist_ru': deg, 'wrist_ps': deg}
@@ -37,8 +37,8 @@ MAX_X         = 300    # lateral bounds for plane
 MAX_Y         = 190    # altitude bounds
 
 BANK_SPEED    = 210    # world-units/s lateral  (PS at full ROM)
-YAW_SPEED     = 90     # world-units/s lateral  (RU at full ROM)
-PITCH_SPEED   = 155    # world-units/s vertical (FE at full ROM)
+YAW_SPEED     = 90     # world-units/s lateral  (FE at full ROM)
+PITCH_SPEED   = 155    # world-units/s vertical (RU at full ROM)
 
 # ── Detection ─────────────────────────────────────────────────────────────────
 RING_DETECT_Z = 80     # z at which ring is evaluated (passed / missed)
@@ -264,7 +264,7 @@ def _draw_hud(surf, font_hud, font_sm,
 
     if demo:
         d = font_sm.render(
-            "DEMO  W/S = pitch   A/D = yaw   Q/E = bank   ESC = quit",
+            "DEMO  W/S = yaw   A/D = pitch   Q/E = bank   ESC = quit",
             True, C_DIM)
         surf.blit(d, (10, H - 22))
 
@@ -340,8 +340,8 @@ def run(angles_fn, kb_update_fn, patient_id, ranges, route_name: str = "easy") -
 
         if not game_over:
             # ── Update plane position ─────────────────────────────────────────
-            plane_x += (ps_n * BANK_SPEED + ru_n * YAW_SPEED) * dt
-            plane_y += fe_n * PITCH_SPEED * dt
+            plane_x += (ps_n * BANK_SPEED + fe_n * YAW_SPEED) * dt
+            plane_y += ru_n * PITCH_SPEED * dt
             plane_x  = max(-MAX_X, min(MAX_X, plane_x))
             plane_y  = max(-MAX_Y, min(MAX_Y, plane_y))
 

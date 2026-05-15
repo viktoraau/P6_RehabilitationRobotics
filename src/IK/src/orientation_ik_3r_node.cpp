@@ -4,6 +4,7 @@
 #include <geometry_msgs/msg/quaternion_stamped.hpp>
 #include <geometry_msgs/msg/vector3_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <trajectory_msgs/msg/joint_trajectory_point.hpp>
 
@@ -81,6 +82,13 @@ public:
       RCLCPP_FATAL(get_logger(), "Unknown input_mode '%s'", input_mode_.c_str());
       throw std::runtime_error("Unknown input_mode");
     }
+
+    // Subscribe to actual joint states for branch disambiguation.
+    // Using the desired-trajectory history as the reference can cause the IK
+    // to drift to large multi-π solutions when desired and actual diverge.
+    joint_state_sub_ = create_subscription<sensor_msgs::msg::JointState>(
+      "/joint_states", 10,
+      std::bind(&OrientationIK3RNode::jointStateCallback, this, std::placeholders::_1));
   }
 
 private:
@@ -204,10 +212,11 @@ private:
 
   bool withinJointLimits(const Eigen::Vector3d & q) const
   {
-    // URDF limits: joint_1 ±1.22173, joint_2 ±1.047198, joint_3 ±0.523599
-    return (q[0] >= -1.221731 && q[0] <=  1.221731) &&
+    // Match safety_limits.yaml (hardware enforcement) so the IK never
+    // commands positions the driver will reject.
+    return (q[0] >= -1.134464 && q[0] <=  1.134464) &&
            (q[1] >= -1.047198 && q[1] <=  1.047198) &&
-           (q[2] >= -0.523599 && q[2] <=  0.523599);
+           (q[2] >= -0.530000 && q[2] <=  0.530000);
   }
 
   // Angular velocity Jacobian in base frame:  omega = Jw(q) * qdot
@@ -427,6 +436,24 @@ private:
     have_last_processed_input_stamp_ = true;
   }
 
+  void jointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+  {
+    const std::vector<std::string> joint_names = {"joint_1", "joint_2", "joint_3"};
+    Eigen::Vector3d q;
+    bool all_found = true;
+    for (int i = 0; i < 3; ++i) {
+      auto it = std::find(msg->name.begin(), msg->name.end(), joint_names[i]);
+      if (it == msg->name.end()) { all_found = false; break; }
+      const size_t idx = static_cast<size_t>(it - msg->name.begin());
+      if (idx >= msg->position.size()) { all_found = false; break; }
+      q[i] = msg->position[idx];
+    }
+    if (all_found) {
+      actual_q_ = q;
+      have_actual_q_ = true;
+    }
+  }
+
   void orientationCallback(const geometry_msgs::msg::QuaternionStamped::SharedPtr msg)
   {
     latest_orientation_ = msg;
@@ -481,14 +508,20 @@ private:
   void processMotionInput(const MotionInput & in)
   {
     Eigen::Vector3d q = solveOrientationIK(in.R);
+    // Anchor branch disambiguation to the actual arm position so the IK never
+    // drifts to a multi-π solution that is far from the physical arm.
+    if (have_actual_q_) {
+      last_q_ = actual_q_;
+      have_last_q_ = true;
+    }
     q = chooseNearestEquivalent(q);
 
-    //if (!withinJointLimits(q)) {
-     // RCLCPP_WARN_THROTTLE(
-     //   get_logger(), *get_clock(), 1000,
-     //   "IK solution outside joint limits");
-     // return;
-    //}
+    if (!withinJointLimits(q)) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 1000,
+        "IK solution outside joint limits — suppressing command");
+      return;
+    }
 
     const Eigen::Matrix3d R_check = forwardOrientation(q);
     const double orientation_error = rotationLog(in.R * R_check.transpose()).norm();
@@ -546,6 +579,7 @@ private:
   rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_sub_;
   rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_static_sub_;
 
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
   rclcpp::Subscription<geometry_msgs::msg::QuaternionStamped>::SharedPtr orientation_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr omega_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr alpha_sub_;
@@ -570,6 +604,9 @@ private:
 
   Eigen::Vector3d last_q_{Eigen::Vector3d::Zero()};
   bool have_last_q_{false};
+
+  Eigen::Vector3d actual_q_{Eigen::Vector3d::Zero()};
+  bool have_actual_q_{false};
 };
 
 int main(int argc, char ** argv)

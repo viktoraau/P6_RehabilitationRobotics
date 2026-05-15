@@ -1,0 +1,43 @@
+step_test_node:
+  ros__parameters:
+
+    # ── Test sequence ─────────────────────────────────────────────────────────
+    # Number of random position waypoints to visit (home is prepended/appended).
+    n_waypoints: 10
+
+    # Random seed for reproducible waypoint generation.
+    # Set to -1 for a different sequence every run.
+    random_seed: 42
+
+    # ── Convergence criteria ──────────────────────────────────────────────────
+    # The robot is considered "settled" when the maximum joint error (radians)
+    # stays below settle_threshold_rad for settle_time_s consecutive seconds.
+    settle_threshold_rad: 0.015   # ~0.86 deg
+    settle_time_s: 1.0
+
+    # How long to record the achieved position once settled (averaged).
+    record_hold_s: 0.5
+
+    # ── Motion parameters ─────────────────────────────────────────────────────
+    # time_from_start sent in each JointTrajectoryPoint (seconds).
+    move_duration_s: 1.0
+
+    # How often to re-publish the target trajectory while waiting to settle.
+    # This ensures the controller always has a fresh setpoint even if a message
+    # was dropped or the controller discards the trajectory after time_from_start.
+    republish_interval_s: 1.0
+
+    # Maximum time allowed for any single waypoint before recording anyway.
+    timeout_s: 10.0
+
+    # ── Topics ────────────────────────────────────────────────────────────────
+    trajectory_topic:  /bridge_desired_trajectory # same as in controller_kdl.yaml  
+    joint_state_topic: /joint_states
+
+    # ── Output ────────────────────────────────────────────────────────────────
+    output_csv: ~/step_test_results.csv
+
+    # ── Internal ──────────────────────────────────────────────────────────────
+    control_rate_hz: 100.0
+
+

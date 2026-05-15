@@ -204,13 +204,14 @@ class ComputedTorqueControllerKDL(Node):
         self.declare_parameter('control_rate_hz', 100.0)
         self.declare_parameter('kp', [12.0, 12.0, 12.0])
         self.declare_parameter('kd', [6.0, 6.0, 6.0])
+
         self.declare_parameter('viscous_friction', [0.0, 0.0, 0.0])
         self.declare_parameter('coulomb_friction', [0.0, 0.0, 0.0])
         self.declare_parameter('coulomb_tanh_scale', 10.0)
         self.declare_parameter('motor_inertia', [0.0, 0.0, 0.0])
         self.declare_parameter('use_motor_inertia', True)
         self.declare_parameter('torque_scale', [1.0, 1.0, 1.0])
-        self.declare_parameter('torque_limits', [45.0, 15.0, 15.0]) #justér
+        self.declare_parameter('torque_limits', [65.0, 50.0, 30.0]) #justér
         self.declare_parameter('gravity_scale', [1.0, 1.0, 1.0])
         self.declare_parameter('transparent_friction_scale', 1.0)
         self.declare_parameter('transparent_mode', False)

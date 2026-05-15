@@ -38,6 +38,7 @@ bode_test_node:
     # ── Timing ─────────────────────────────────────────────────────────────────
     control_rate_hz: 100.0
 
-    # Homing: publish zero wrench and wait for stiffness spring to pull arm to zero
+    # Homing: publishes zero wrench so the admittance stiffness spring drives
+    # q_des back to zero (after reinit_reference resets q_ref to identity).
     homing_duration_s: 5.0
     homing_threshold_rad: 0.08

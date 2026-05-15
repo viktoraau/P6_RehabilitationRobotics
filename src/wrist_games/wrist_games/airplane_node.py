@@ -77,7 +77,10 @@ class AirplaneNode(Node):
         with self._angles_lock:
             for name, pos in zip(msg.name, msg.position):
                 if name in self._angles:
-                    self._angles[name] = math.degrees(pos)
+                    deg = math.degrees(pos)
+                    if name == JOINT_PS:
+                        deg = -deg
+                    self._angles[name] = deg
 
     def _service_cb(self, request, response):
         with self._pending_lock:

@@ -419,11 +419,24 @@ private:
 
   // ── Core IK solve ──────────────────────────────────────────────────────────
 
+  static bool withinJointLimits(const Eigen::Vector3d & q)
+  {
+    return (q[0] >= -1.134464 && q[0] <=  1.134464) &&
+           (q[1] >= -1.047198 && q[1] <=  1.047198) &&
+           (q[2] >= -0.530000 && q[2] <=  0.530000);
+  }
+
   void processMotionInput(const MotionInput & in)
   {
     // Position IK
     Eigen::Vector3d q = solveOrientationIK(in.R);
     q = chooseNearestEquivalent(q);
+
+    if (!withinJointLimits(q)) {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
+        "IK solution outside joint limits — suppressing command");
+      return;
+    }
 
     // Verify FK round-trip
     const Eigen::Matrix3d R_check = forwardOrientation(q);

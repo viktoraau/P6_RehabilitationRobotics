@@ -2,17 +2,17 @@
 # These can be more conservative than URDF limits for safety
 joint_limits:
   joint_1:
-    has_velocity_limits: true
+    has_velocity_limits: false
     max_velocity: 1.5
-    has_acceleration_limits: true
+    has_acceleration_limits: false
     max_acceleration: 3.0
   joint_2:
-    has_velocity_limits: true
+    has_velocity_limits: false
     max_velocity: 1.5
-    has_acceleration_limits: true
+    has_acceleration_limits: false  
     max_acceleration: 3.0
   joint_3:
-    has_velocity_limits: true
+    has_velocity_limits: false
     max_velocity: 1.5
-    has_acceleration_limits: true
+    has_acceleration_limits: false
     max_acceleration: 3.0

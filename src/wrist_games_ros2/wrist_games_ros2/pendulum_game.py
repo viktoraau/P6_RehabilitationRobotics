@@ -4,7 +4,7 @@ pendulum_game.py
 Balance an inverted pendulum by moving the cart with your wrist.
 
 Joint mapping:
-  Joint 2 (RUD - Radial/Ulnar Dev.)  →  cart target X position
+    Joint 2 (FE - Flex/Extend)  →  cart target X position
 
 Physics: classic cart-pole inverted pendulum.
 Score: +points every second the pole stays upright.
@@ -60,9 +60,9 @@ class PendulumGame:
         self.lives = args.start_lives
         self.cart_target = float(W // 2)
         self.score_timer = 0.0
-        self.score_angle = math.radians(10)   # tightens with level
+        self.score_angle = math.radians(15)   # easier initial scoring window
         self.disturbance_timer = 0.0
-        self.disturbance_interval = 8.0       # seconds between random nudges
+        self.disturbance_interval = 10.0      # seconds between random nudges
         self._levelup_flash = 0.0
         self._reset()
 
@@ -77,10 +77,13 @@ class PendulumGame:
     def _update_control(self) -> None:
         rclpy.spin_once(self.bridge, timeout_sec=0.0)
         vals = self.bridge.get_normalized(self.gain)
-        self.cart_target = W / 2 + vals[self.h_joint] * (W / 2 - TRACK_MARGIN - CART_W / 2)
+        cmd = vals[self.h_joint]
+        # Boost low-to-mid input so carriage starts moving with smaller wrist motion.
+        cmd = math.copysign(min(1.0, abs(cmd) ** 0.72), cmd)
+        self.cart_target = W / 2 + cmd * (W / 2 - TRACK_MARGIN - CART_W / 2)
 
     def _physics(self, dt: float) -> None:
-        Kp, Kd = 900.0, 85.0
+        Kp, Kd = 1400.0, 110.0
         F = Kp * (self.cart_target - self.cart_x) - Kd * self.cart_vel
         F = max(-2500.0, min(2500.0, F))
         F -= MU * self.cart_vel
@@ -112,8 +115,8 @@ class PendulumGame:
 
     def _on_level_up(self, level: int) -> None:
         self.sound.play("level_up")
-        self.score_angle = max(math.radians(8), self.score_angle - math.radians(2))
-        self.disturbance_interval = max(3.0, self.disturbance_interval - 0.5)
+        self.score_angle = max(math.radians(11), self.score_angle - math.radians(1.2))
+        self.disturbance_interval = max(5.0, self.disturbance_interval - 0.4)
         self._levelup_flash = 1.2
 
     def run(self) -> None:
@@ -131,7 +134,7 @@ class PendulumGame:
             # Random disturbance
             self.disturbance_timer += dt
             if self.disturbance_timer >= self.disturbance_interval:
-                self.theta_dot += random.uniform(-1.5, 1.5)
+                self.theta_dot += random.uniform(-0.9, 0.9)
                 self.disturbance_timer = 0.0
 
             self._physics(dt)
@@ -222,7 +225,7 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Inverted pendulum balance game (ROS2).")
     p.add_argument("--ros-topic", default="/joint_states")
     p.add_argument("--joint-names", default="")
-    p.add_argument("--joint-h-index", type=int, default=2, choices=[0, 1, 2])
+    p.add_argument("--joint-h-index", type=int, default=1, choices=[0, 1, 2])
     p.add_argument("--control-gain", type=float, default=1.0)
     p.add_argument("--start-lives", type=int, default=3)
     p.add_argument("--points-per-catch", type=int, default=10)

@@ -10,6 +10,7 @@ Score: +points per gate passed.  Miss: life lost when hitting pillar.
 """
 
 import argparse
+import math
 import random
 from pathlib import Path
 from typing import List
@@ -18,6 +19,7 @@ import pygame
 import rclpy
 
 from wrist_games.joint_state_bridge import JointStateBridge
+from wrist_games.rom_utils import JOINT_FE, load_latest_rom
 from wrist_games.score_sound import LevelManager, ScoreBoard, SoundManager
 
 W, H = 900, 600
@@ -60,6 +62,12 @@ class AirplaneGame:
         self.bridge = JointStateBridge(args.ros_topic, jnames)
         self.v_joint = args.joint_v_index
         self.gain = args.control_gain
+        ranges, rom_path = load_latest_rom(args.rom_patient_id, Path(args.rom_data_dir).expanduser())
+        self.rom_ranges = ranges
+        if rom_path:
+            print(f"[airplane_game] Using ROM file: {rom_path}")
+        else:
+            print("[airplane_game] No ROM file found, using default ROM ranges")
         self.scoreboard = ScoreBoard(args.points_per_catch)
         self.level_manager = LevelManager(points_per_level=50)
         self.sound = SoundManager(Path(__file__).resolve().parent / "assets")
@@ -76,10 +84,22 @@ class AirplaneGame:
 
         self.sound.play("start")
 
+    @staticmethod
+    def _norm_rom(angle_deg: float, lo: float, hi: float) -> float:
+        if angle_deg >= 0.0:
+            return min(1.0, angle_deg / hi) if hi > 0.0 else 0.0
+        return max(-1.0, angle_deg / abs(lo)) if lo < 0.0 else 0.0
+
     def _update_control(self) -> None:
         rclpy.spin_once(self.bridge, timeout_sec=0.0)
-        vals = self.bridge.get_normalized(self.gain)
-        target_y = H / 2 - vals[self.v_joint] * (H / 2 - 55)
+        raw = self.bridge.get_positions()
+        deg = [math.degrees(v) for v in raw]
+        fe_cmd = self._norm_rom(
+            deg[self.v_joint],
+            self.rom_ranges[JOINT_FE][0],
+            self.rom_ranges[JOINT_FE][1],
+        )
+        target_y = H / 2 - fe_cmd * (H / 2 - 55)
         self.plane_y += (target_y - self.plane_y) * 0.18
 
     def _on_level_up(self, level: int) -> None:
@@ -183,6 +203,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--joint-names", default="")
     p.add_argument("--joint-v-index", type=int, default=1, choices=[0, 1, 2])
     p.add_argument("--control-gain", type=float, default=1.0)
+    p.add_argument("--rom-patient-id", default="default")
+    p.add_argument("--rom-data-dir", default="~/wrist_games_data")
     p.add_argument("--start-lives", type=int, default=3)
     p.add_argument("--points-per-catch", type=int, default=10)
     return p
